@@ -1,0 +1,18 @@
+# Dependencies (installed per-host, never committed)
+node_modules/
+
+# Secrets / env
+.env
+.env.*
+
+# Backup snapshots (index.js.bak.<timestamp> convention)
+*.bak
+*.bak.*
+
+# OS / editor cruft
+.DS_Store
+*.log
+
+# Build outputs we do NOT deploy (the admin-ui build in public/admin IS committed on purpose)
+admin-ui/dist/
+inbox-ui/dist/
