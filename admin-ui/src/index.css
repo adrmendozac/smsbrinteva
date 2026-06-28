@@ -1,0 +1,58 @@
+@import "tailwindcss";
+
+@theme {
+  --color-brand-crimson: #c8103c;
+  --color-brand-navy: #24243c;
+  --color-brand-blue: #305aa0;
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", monospace;
+}
+
+/* Semantic + surface tokens. No pure black/white. Mirrors inbox-ui. */
+:root {
+  --surface: #f7f7f9;
+  --surface-elevated: #ffffff;
+  --surface-sunken: #ececed;
+  --border: #dededf;
+  --text-primary: #1c1c24;
+  --text-muted: #5b5b66;
+  --primary: #24243c;
+  --primary-fg: #f7f7f9;
+  --brand: #c8103c;
+  --focus: #305aa0;
+  --status-draft: #6b7280;
+  --status-scheduled: #305aa0;
+  --status-sending: #d97706;
+  --status-completed: #059669;
+  --status-failed: #dc2626;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--surface);
+  color: var(--text-primary);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+input,
+textarea,
+button,
+select {
+  font-family: inherit;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    transition-duration: 0.001ms !important;
+  }
+}
