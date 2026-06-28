@@ -31,6 +31,14 @@ app.get('/', (req, res) => {
   res.send('SMS Bot is running');
 });
 
+// Public legal pages (referenced by the 10DLC campaign opt-in flow).
+app.get('/privacy', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/legal/privacy.html'));
+});
+app.get('/sms-terms', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/legal/sms-terms.html'));
+});
+
 // ── Auth: shared PIN gate ──────────────────────────────────────────────────
 
 app.post('/api/login', (req, res) => {
