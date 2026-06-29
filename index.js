@@ -38,6 +38,9 @@ app.get('/privacy', (req, res) => {
 app.get('/sms-terms', (req, res) => {
   res.sendFile(path.join(__dirname, 'public/legal/sms-terms.html'));
 });
+app.get('/consent-script', (req, res) => {
+  res.sendFile(path.join(__dirname, 'public/legal/consent-script.html'));
+});
 
 // ── Auth: shared PIN gate ──────────────────────────────────────────────────
 
