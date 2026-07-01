@@ -10,8 +10,11 @@ const { startScheduler } = require('./lib/scheduler');
 const kommo = require('./lib/kommo');
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: true }));
+// Capture the raw request bytes so the Kommo webhook can verify X-Signature
+// (HMAC of the exact body) even though the body is also JSON-parsed for handlers.
+const captureRaw = (req, res, buf) => { req.rawBody = buf; };
+app.use(express.json({ verify: captureRaw }));
+app.use(express.urlencoded({ extended: true, verify: captureRaw }));
 
 // Admin campaign-launcher SPA, served same-origin at /admin (built to public/admin).
 app.use('/admin', express.static(path.join(__dirname, 'public/admin')));
