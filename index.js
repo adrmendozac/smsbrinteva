@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const { sanitizeForSMS } = require('./lib/sms');
 const { registerCampaignRoutes } = require('./lib/campaigns');
 const { startScheduler } = require('./lib/scheduler');
+const kommo = require('./lib/kommo');
 
 const app = express();
 app.use(express.json());
@@ -79,6 +80,88 @@ const deps = {
 registerCampaignRoutes(app, deps, requireAuth);
 startScheduler(deps);
 
+// ── Kommo Chats API gateway ────────────────────────────────────────────────
+// MySQL stays the source of truth; Kommo is the agent-facing mirror. Everything
+// is gated behind KOMMO_ENABLED so the live bot keeps working if it's off.
+
+const KOMMO = {
+  enabled: String(process.env.KOMMO_ENABLED) === '1',
+  scopeId: process.env.KOMMO_SCOPE_ID,
+  secret: process.env.KOMMO_CHANNEL_SECRET,
+  mirrorAi: String(process.env.KOMMO_MIRROR_AI) === '1'
+};
+
+// Push a customer's inbound SMS into the Kommo chat so agents can see it.
+async function mirrorInboundToKommo({ phone, name, text, msgid }) {
+  if (!KOMMO.enabled || !KOMMO.scopeId || !KOMMO.secret) return;
+  try {
+    const res = await kommo.importMessage({
+      axios, scopeId: KOMMO.scopeId, secret: KOMMO.secret,
+      payload: kommo.inboundPayload({ phone, name, text, msgid })
+    });
+    if (res.status >= 300) console.error('[kommo] inbound import failed', res.status, JSON.stringify(res.data));
+  } catch (err) {
+    console.error('[kommo] mirrorInbound error:', err.message);
+  }
+}
+
+// Mirror a message WE sent (AI/system) into the Kommo thread (silent, no re-send).
+async function mirrorOutboundToKommo({ phone, text, msgid, senderName }) {
+  if (!KOMMO.enabled || !KOMMO.mirrorAi || !KOMMO.scopeId || !KOMMO.secret) return;
+  try {
+    const res = await kommo.importMessage({
+      axios, scopeId: KOMMO.scopeId, secret: KOMMO.secret,
+      payload: kommo.outboundPayload({ phone, text, msgid, senderName })
+    });
+    if (res.status >= 300) console.error('[kommo] outbound import failed', res.status, JSON.stringify(res.data));
+  } catch (err) {
+    console.error('[kommo] mirrorOutbound error:', err.message);
+  }
+}
+
+// Kommo -> us: an agent typed a reply inside Kommo. Deliver it over SMS and mute
+// the AI for that conversation. (Kommo only webhooks manager-authored messages,
+// so there is no client echo to filter.)
+kommo.registerKommoRoutes(app, { env: process.env }, async (payload) => {
+  const m = (payload && payload.message) || {};
+  const text = m.message && m.message.text;
+  let phone = m.receiver && m.receiver.phone;
+  if (!phone && m.conversation && m.conversation.client_id) {
+    const digits = String(m.conversation.client_id).replace(/\D/g, '');
+    if (digits) phone = digits;
+  }
+  if (!text || !phone) {
+    console.warn('[kommo] webhook missing text/phone — ignoring');
+    return;
+  }
+
+  await db.execute(
+    `INSERT INTO contacts (phone) VALUES (?) ON DUPLICATE KEY UPDATE updated_at = NOW()`,
+    [phone]
+  );
+  const [contacts] = await db.execute('SELECT id FROM contacts WHERE phone = ?', [phone]);
+  const contactId = contacts[0].id;
+
+  let [convRows] = await db.execute(
+    `SELECT id FROM conversations WHERE contact_id = ? AND status != 'resolved'
+     ORDER BY created_at DESC LIMIT 1`,
+    [contactId]
+  );
+  let conversationId;
+  if (convRows.length === 0) {
+    const [nc] = await db.execute(
+      `INSERT INTO conversations (contact_id, status) VALUES (?, 'needs_human')`, [contactId]
+    );
+    conversationId = nc.insertId;
+  } else {
+    conversationId = convRows[0].id;
+  }
+
+  await sendSMS(phone, sanitizeForSMS(text), conversationId, 'human');
+  await db.execute(`UPDATE conversations SET status = 'needs_human' WHERE id = ?`, [conversationId]);
+  console.log(`[kommo] agent reply relayed to ${phone} (conv ${conversationId})`);
+});
+
 // ── Inbound SMS handler ────────────────────────────────────────────────────
 
 app.post('/inbound', async (req, res) => {
@@ -117,11 +200,12 @@ app.post('/inbound', async (req, res) => {
       conversationId = convRows[0].id;
     }
 
-    await db.execute(
+    const [inboundMsg] = await db.execute(
       `INSERT INTO messages (conversation_id, direction, body, vonage_message_id, status, sent_by)
        VALUES (?, 'inbound', ?, ?, 'received', 'human')`,
       [conversationId, text, messageId || null]
     );
+    const inboundMsgId = inboundMsg.insertId;
 
     if (/^(stop|unsubscribe|cancel|quit|end)$/i.test(text.trim())) {
       await db.execute(
@@ -144,6 +228,9 @@ app.post('/inbound', async (req, res) => {
       await sendSMS(msisdn, 'You have been re-subscribed to Brinteva Worlds updates. Reply STOP to unsubscribe.', conversationId, 'system');
       return;
     }
+
+    // Mirror the customer's message into Kommo (after opt-in/out so those aren't mirrored).
+    await mirrorInboundToKommo({ phone: msisdn, name: null, text, msgid: inboundMsgId });
 
     const [convStatus] = await db.execute(
       'SELECT status FROM conversations WHERE id = ?', [conversationId]
@@ -198,7 +285,9 @@ RULES:
       console.log(`Conversation ${conversationId} escalated to human`);
     }
 
-    await sendSMS(msisdn, sanitizeForSMS(reply), conversationId, 'ai');
+    const cleanReply = sanitizeForSMS(reply);
+    await sendSMS(msisdn, cleanReply, conversationId, 'ai');
+    await mirrorOutboundToKommo({ phone: msisdn, text: cleanReply, msgid: `ai-${inboundMsgId}`, senderName: 'Brinteva AI' });
 
   } catch (err) {
     console.error('Inbound handler error:', err.message);
