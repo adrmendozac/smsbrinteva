@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Get SMS Updates — Brinteva Worlds Inc.</title>
+  <style>
+    :root { color-scheme: light; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+           line-height: 1.6; color: #1a1a1a; max-width: 760px; margin: 0 auto; padding: 40px 20px; }
+    h1 { font-size: 1.9rem; margin-bottom: 0.25rem; }
+    .muted { color: #666; font-size: 0.9rem; }
+    a { color: #6b3fd4; }
+    label { display: block; font-weight: 600; margin-top: 1.2rem; }
+    input[type=text], input[type=tel] { width: 100%; box-sizing: border-box; padding: 10px 12px;
+           font-size: 1rem; border: 1px solid #ccc; border-radius: 6px; margin-top: 6px; }
+    .consent { display: flex; gap: 10px; align-items: flex-start; margin-top: 1.4rem;
+           background: #f4efff; border-left: 3px solid #6b3fd4; padding: 12px 16px; border-radius: 4px; }
+    .consent input { margin-top: 5px; }
+    .consent label { font-weight: 400; margin: 0; font-size: 0.92rem; }
+    button { margin-top: 1.6rem; background: #6b3fd4; color: #fff; border: 0; border-radius: 6px;
+           padding: 12px 22px; font-size: 1rem; font-weight: 600; cursor: pointer; }
+    button:disabled { opacity: 0.5; cursor: default; }
+    #status { margin-top: 1rem; font-weight: 600; }
+    #status.ok { color: #1a7f37; }
+    #status.err { color: #c0392b; }
+    .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+    footer { margin-top: 3rem; font-size: 0.85rem; color: #777; border-top: 1px solid #eee; padding-top: 1rem; }
+  </style>
+</head>
+<body>
+  <h1>Get SMS Updates from Brinteva Worlds</h1>
+  <p class="muted">Sign up to receive travel deals, booking updates, and customer-care messages by text.</p>
+
+  <form id="optin">
+    <label for="name">Full name</label>
+    <input type="text" id="name" name="name" autocomplete="name" required>
+
+    <label for="phone">Mobile phone number</label>
+    <input type="tel" id="phone" name="phone" autocomplete="tel" placeholder="(555) 123-4567" required>
+
+    <!-- Honeypot: hidden from users; bots tend to fill it. -->
+    <div class="hp" aria-hidden="true">
+      <label for="website">Website</label>
+      <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">
+    </div>
+
+    <div class="consent">
+      <input type="checkbox" id="consent" name="consent" required>
+      <label for="consent">
+        I agree to receive recurring automated marketing and customer-care text messages from
+        Brinteva Worlds Inc. at the number provided. Consent is not a condition of purchase.
+        Msg &amp; data rates may apply. Msg frequency varies. Reply STOP to cancel, HELP for help.
+        See our <a href="/privacy">Privacy Policy</a> and
+        <a href="/sms-terms">SMS Terms &amp; Conditions</a>.
+      </label>
+    </div>
+
+    <button type="submit" id="submit">Sign me up</button>
+    <div id="status" role="status" aria-live="polite"></div>
+  </form>
+
+  <footer>
+    &copy; 2026 Brinteva Worlds Inc. All rights reserved. &middot;
+    <a href="/privacy">Privacy Policy</a> &middot; <a href="/sms-terms">SMS Terms &amp; Conditions</a>
+  </footer>
+
+  <script>
+    const form = document.getElementById('optin');
+    const statusEl = document.getElementById('status');
+    const btn = document.getElementById('submit');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      statusEl.textContent = '';
+      statusEl.className = '';
+      if (!document.getElementById('consent').checked) {
+        statusEl.textContent = 'Please check the consent box to continue.';
+        statusEl.className = 'err';
+        return;
+      }
+      btn.disabled = true;
+      const payload = {
+        name: document.getElementById('name').value,
+        phone: document.getElementById('phone').value,
+        consent: document.getElementById('consent').checked,
+        website: document.getElementById('website').value
+      };
+      try {
+        const res = await fetch('/api/opt-in', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (res.ok && data.ok) {
+          form.reset();
+          statusEl.textContent = "You're subscribed! Check your phone for a confirmation text.";
+          statusEl.className = 'ok';
+          btn.disabled = true;
+        } else {
+          statusEl.textContent = data.error || 'Something went wrong, please try again.';
+          statusEl.className = 'err';
+          btn.disabled = false;
+        }
+      } catch (err) {
+        statusEl.textContent = 'Network error, please try again.';
+        statusEl.className = 'err';
+        btn.disabled = false;
+      }
+    });
+  </script>
+</body>
+</html>
