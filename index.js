@@ -213,6 +213,23 @@ async function mirrorOutboundToKommo({ phone, text, msgid, senderName }) {
   }
 }
 
+// Report delivery progress of an agent reply back to Kommo (amojo enum:
+// -1 error, 0 sent, 1 delivered, 2 read).
+async function pushKommoDeliveryStatus(msgid, deliveryStatus, error) {
+  if (!KOMMO.enabled || !KOMMO.scopeId || !KOMMO.secret) return;
+  try {
+    const res = await kommo.updateDeliveryStatus({
+      axios, scopeId: KOMMO.scopeId, secret: KOMMO.secret,
+      msgid, deliveryStatus,
+      errorCode: deliveryStatus === -1 ? 905 : undefined, // 905 = unknown error
+      error: deliveryStatus === -1 ? (error || 'delivery failed') : undefined
+    });
+    if (res.status >= 300) console.error('[kommo] delivery_status failed', res.status, JSON.stringify(res.data));
+  } catch (err) {
+    console.error('[kommo] pushDeliveryStatus error:', err.message);
+  }
+}
+
 // Kommo -> us: an agent typed a reply inside Kommo. Deliver it over SMS and mute
 // the AI for that conversation. (Kommo only webhooks manager-authored messages,
 // so there is no client echo to filter.)
@@ -251,8 +268,21 @@ kommo.registerKommoRoutes(app, { env: process.env }, async (payload) => {
     conversationId = convRows[0].id;
   }
 
-  await sendSMS(phone, sanitizeForSMS(text), conversationId, 'human');
+  const sent = await sendSMS(phone, sanitizeForSMS(text), conversationId, 'human');
   await db.execute(`UPDATE conversations SET status = 'needs_human' WHERE id = ?`, [conversationId]);
+
+  // Remember Kommo's msgid for this relay so /status DLRs can be reported back
+  // to Kommo as delivered/failed on the agent's message.
+  const kommoMsgid = m.message && m.message.id;
+  if (sent && kommoMsgid) {
+    await db.execute(
+      `UPDATE messages SET kommo_msgid = ? WHERE id = ?`,
+      [String(kommoMsgid), sent.dbId]
+    ).catch(e => console.error('[kommo] kommo_msgid save error:', e.message));
+  } else if (!sent && kommoMsgid) {
+    // SMS never left Vonage — tell Kommo immediately so the agent sees the failure.
+    await pushKommoDeliveryStatus(String(kommoMsgid), -1, 'SMS send failed');
+  }
   console.log(`[kommo] agent reply relayed to ${phone} (conv ${conversationId})`);
 });
 
@@ -263,6 +293,13 @@ app.post('/inbound', async (req, res) => {
   console.log(`Inbound SMS from ${msisdn}: ${text}`);
 
   res.sendStatus(200);
+
+  // Non-text inbound (MMS, unexpected webhook formats) lacks these fields;
+  // skip instead of passing undefined binds to MySQL.
+  if (!msisdn || !text) {
+    console.warn('[inbound] missing from/text — ignoring');
+    return;
+  }
 
   try {
     const [contactRows] = await db.execute(
@@ -400,6 +437,22 @@ app.post('/status', async (req, res) => {
         `UPDATE messages SET status = ? WHERE vonage_message_id = ?`,
         [status.toLowerCase(), messageId]
       );
+
+      // If this message was an agent reply relayed from Kommo, report the
+      // carrier verdict back so the agent sees delivered/failed in the chat.
+      const s = status.toLowerCase();
+      const kommoStatus = s === 'delivered' ? 1
+        : ['failed', 'rejected', 'expired', 'undeliverable'].includes(s) ? -1
+        : null; // intermediate states (accepted/buffered) stay as imported
+      if (kommoStatus !== null) {
+        const [rows] = await db.execute(
+          `SELECT kommo_msgid FROM messages WHERE vonage_message_id = ? AND kommo_msgid IS NOT NULL`,
+          [messageId]
+        );
+        if (rows.length > 0) {
+          await pushKommoDeliveryStatus(rows[0].kommo_msgid, kommoStatus, `carrier status: ${s}`);
+        }
+      }
     } catch (err) {
       console.error('Status update error:', err.message);
     }
@@ -420,13 +473,14 @@ async function sendSMS(to, text, conversationId, sentBy = 'ai') {
 
     const messageId = response.data.messages?.[0]?.['message-id'];
 
-    await db.execute(
+    const [ins] = await db.execute(
       `INSERT INTO messages (conversation_id, direction, body, vonage_message_id, status, sent_by)
        VALUES (?, 'outbound', ?, ?, 'sent', ?)`,
       [conversationId, text, messageId || null, sentBy]
     );
 
     console.log(`Sent to ${to} [${sentBy}]: ${text}`);
+    return { messageId: messageId || null, dbId: ins.insertId };
   } catch (err) {
     console.error('sendSMS error:', err.message);
     await db.execute(
@@ -434,6 +488,7 @@ async function sendSMS(to, text, conversationId, sentBy = 'ai') {
        VALUES (?, 'outbound', ?, 'failed', ?)`,
       [conversationId, text, sentBy]
     ).catch(e => console.error('Failed to log failed message:', e.message));
+    return null;
   }
 }
 
