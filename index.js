@@ -182,7 +182,8 @@ const KOMMO = {
   enabled: String(process.env.KOMMO_ENABLED) === '1',
   scopeId: process.env.KOMMO_SCOPE_ID,
   secret: process.env.KOMMO_CHANNEL_SECRET,
-  mirrorAi: String(process.env.KOMMO_MIRROR_AI) === '1'
+  mirrorAi: String(process.env.KOMMO_MIRROR_AI) === '1',
+  botId: process.env.KOMMO_BOT_ID // integration bot id from channel registration
 };
 
 // Push a customer's inbound SMS into the Kommo chat so agents can see it.
@@ -201,11 +202,11 @@ async function mirrorInboundToKommo({ phone, name, text, msgid }) {
 
 // Mirror a message WE sent (AI/system) into the Kommo thread (silent, no re-send).
 async function mirrorOutboundToKommo({ phone, text, msgid, senderName }) {
-  if (!KOMMO.enabled || !KOMMO.mirrorAi || !KOMMO.scopeId || !KOMMO.secret) return;
+  if (!KOMMO.enabled || !KOMMO.mirrorAi || !KOMMO.scopeId || !KOMMO.secret || !KOMMO.botId) return;
   try {
     const res = await kommo.importMessage({
       axios, scopeId: KOMMO.scopeId, secret: KOMMO.secret,
-      payload: kommo.outboundPayload({ phone, text, msgid, senderName })
+      payload: kommo.outboundPayload({ phone, text, msgid, senderName, botRefId: KOMMO.botId })
     });
     if (res.status >= 300) console.error('[kommo] outbound import failed', res.status, JSON.stringify(res.data));
   } catch (err) {
