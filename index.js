@@ -348,7 +348,7 @@ app.post('/inbound', async (req, res) => {
         `UPDATE conversations SET status = 'resolved' WHERE id = ?`,
         [conversationId]
       );
-      await sendSMS(msisdn, 'You have been unsubscribed. Reply START to opt back in.', conversationId, 'system');
+      await sendSMS(msisdn, 'Brinteva Worlds: You have been successfully unsubscribed and will no longer receive messages. Reply START to resubscribe.', conversationId, 'system');
       return;
     }
 
@@ -357,7 +357,14 @@ app.post('/inbound', async (req, res) => {
         `UPDATE contacts SET opted_in = TRUE, opted_out_at = NULL WHERE id = ?`,
         [contactId]
       );
-      await sendSMS(msisdn, 'You have been re-subscribed to Brinteva Worlds updates. Reply STOP to unsubscribe.', conversationId, 'system');
+      await sendSMS(msisdn, 'Brinteva Worlds: You have subscribed to receive recurring promotional messages. Message frequency varies. Message and data rates may apply. Reply STOP to cancel, HELP for help.', conversationId, 'system');
+      return;
+    }
+
+    // HELP auto-responder (registered 10DLC help keyword; must always reply,
+    // even for opted-out contacts, so it runs before any AI/Kommo handling).
+    if (/^(help|info)$/i.test(text.trim())) {
+      await sendSMS(msisdn, 'Brinteva Worlds: For help, email us at nicoll@brintevaworlds.com or call +1 (925) 262-8150. Message and data rates may apply. Reply STOP to cancel.', conversationId, 'system');
       return;
     }
 
