@@ -8,6 +8,7 @@ const { sanitizeForSMS } = require('./lib/sms');
 const { registerCampaignRoutes } = require('./lib/campaigns');
 const { startScheduler } = require('./lib/scheduler');
 const kommo = require('./lib/kommo');
+const { sendMessage } = require('./lib/vonage');
 
 const app = express();
 // Capture the raw request bytes so the Kommo webhook can verify X-Signature
@@ -435,7 +436,10 @@ RULES:
 
 // Delivery status handler
 app.post('/status', async (req, res) => {
-  const { messageId, status } = req.body;
+  // Messages API reports message_uuid; the legacy SMS API sent messageId.
+  // Accept both so receipts still resolve if the account API type ever changes.
+  const messageId = req.body.message_uuid || req.body.messageId;
+  const { status } = req.body;
   console.log(`Status update for ${messageId}: ${status}`);
   res.sendStatus(200);
 
@@ -471,15 +475,7 @@ app.post('/status', async (req, res) => {
 
 async function sendSMS(to, text, conversationId, sentBy = 'ai') {
   try {
-    const response = await axios.post('https://rest.nexmo.com/sms/json', {
-      api_key: process.env.VONAGE_API_KEY,
-      api_secret: process.env.VONAGE_API_SECRET,
-      from: process.env.VONAGE_NUMBER,
-      to,
-      text
-    });
-
-    const messageId = response.data.messages?.[0]?.['message-id'];
+    const { messageId } = await sendMessage({ axios, env: process.env }, to, text);
 
     const [ins] = await db.execute(
       `INSERT INTO messages (conversation_id, direction, body, vonage_message_id, status, sent_by)
