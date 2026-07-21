@@ -461,27 +461,32 @@ app.post('/status', async (req, res) => {
   console.log(`Status update for ${messageId}: ${status}`);
   res.sendStatus(200);
 
-  if (messageId && status) {
+  // The Messages API reports a lifecycle (submitted -> delivered), but
+  // messages.status is enum('received','sent','delivered','failed') and outbound
+  // rows are already inserted as 'sent'. Map to the enum and ignore intermediate
+  // states -- writing 'submitted' raises "Data truncated for column 'status'",
+  // which aborted the handler before the Kommo push below could run.
+  const s = String(status || '').toLowerCase();
+  const dbStatus = s === 'delivered' ? 'delivered'
+    : ['failed', 'rejected', 'expired', 'undeliverable'].includes(s) ? 'failed'
+    : null;
+
+  if (messageId && dbStatus) {
     try {
       await db.execute(
         `UPDATE messages SET status = ? WHERE vonage_message_id = ?`,
-        [status.toLowerCase(), messageId]
+        [dbStatus, messageId]
       );
 
       // If this message was an agent reply relayed from Kommo, report the
       // carrier verdict back so the agent sees delivered/failed in the chat.
-      const s = status.toLowerCase();
-      const kommoStatus = s === 'delivered' ? 1
-        : ['failed', 'rejected', 'expired', 'undeliverable'].includes(s) ? -1
-        : null; // intermediate states (accepted/buffered) stay as imported
-      if (kommoStatus !== null) {
-        const [rows] = await db.execute(
-          `SELECT kommo_msgid FROM messages WHERE vonage_message_id = ? AND kommo_msgid IS NOT NULL`,
-          [messageId]
-        );
-        if (rows.length > 0) {
-          await pushKommoDeliveryStatus(rows[0].kommo_msgid, kommoStatus, `carrier status: ${s}`);
-        }
+      const kommoStatus = dbStatus === 'delivered' ? 1 : -1;
+      const [rows] = await db.execute(
+        `SELECT kommo_msgid FROM messages WHERE vonage_message_id = ? AND kommo_msgid IS NOT NULL`,
+        [messageId]
+      );
+      if (rows.length > 0) {
+        await pushKommoDeliveryStatus(rows[0].kommo_msgid, kommoStatus, `carrier status: ${s}`);
       }
     } catch (err) {
       console.error('Status update error:', err.message);
