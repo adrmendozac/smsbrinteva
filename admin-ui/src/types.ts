@@ -29,8 +29,21 @@ export interface RecipientCount {
   n: number;
 }
 
+export type RecipientStatus = "pending" | "sent" | "failed" | "opted_out";
+
+export interface Recipient {
+  id: number;
+  phone: string;
+  name: string | null;
+  status: RecipientStatus;
+  vonage_message_id: string | null;
+  error: string | null;
+  sent_at: string | null;
+}
+
 export interface CampaignDetail extends Campaign {
   recipientCounts: RecipientCount[];
+  recipients: Recipient[];
 }
 
 export interface CreateCampaignPayload {
