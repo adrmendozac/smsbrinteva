@@ -472,21 +472,47 @@ app.post('/status', async (req, res) => {
     : null;
 
   if (messageId && dbStatus) {
+    const kommoStatus = dbStatus === 'delivered' ? 1 : -1;
     try {
-      await db.execute(
-        `UPDATE messages SET status = ? WHERE vonage_message_id = ?`,
-        [dbStatus, messageId]
-      );
-
-      // If this message was an agent reply relayed from Kommo, report the
-      // carrier verdict back so the agent sees delivered/failed in the chat.
-      const kommoStatus = dbStatus === 'delivered' ? 1 : -1;
-      const [rows] = await db.execute(
-        `SELECT kommo_msgid FROM messages WHERE vonage_message_id = ? AND kommo_msgid IS NOT NULL`,
+      // A message id belongs to exactly one of two places: conversational
+      // messages live in `messages`, campaign sends only in
+      // `broadcast_recipients`. Look before writing rather than relying on
+      // affectedRows, which is 0 when the value is already correct.
+      const [owned] = await db.execute(
+        `SELECT kommo_msgid FROM messages WHERE vonage_message_id = ?`,
         [messageId]
       );
-      if (rows.length > 0) {
-        await pushKommoDeliveryStatus(rows[0].kommo_msgid, kommoStatus, `carrier status: ${s}`);
+
+      if (owned.length > 0) {
+        await db.execute(
+          `UPDATE messages SET status = ? WHERE vonage_message_id = ?`,
+          [dbStatus, messageId]
+        );
+        // If this message was an agent reply relayed from Kommo, report the
+        // carrier verdict back so the agent sees delivered/failed in the chat.
+        if (owned[0].kommo_msgid) {
+          await pushKommoDeliveryStatus(owned[0].kommo_msgid, kommoStatus, `carrier status: ${s}`);
+        }
+        return;
+      }
+
+      const [recips] = await db.execute(
+        `SELECT id, broadcast_id FROM broadcast_recipients WHERE vonage_message_id = ?`,
+        [messageId]
+      );
+      if (recips.length > 0) {
+        const r = recips[0];
+        await db.execute(`UPDATE broadcast_recipients SET status = ? WHERE id = ?`, [
+          dbStatus,
+          r.id
+        ]);
+        // Campaign blasts are imported with a deterministic msgid, so the same
+        // value can be rebuilt here without storing a Kommo id per recipient.
+        await pushKommoDeliveryStatus(
+          `campaign-${r.broadcast_id}-${r.id}`,
+          kommoStatus,
+          `carrier status: ${s}`
+        );
       }
     } catch (err) {
       console.error('Status update error:', err.message);

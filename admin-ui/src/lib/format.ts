@@ -40,6 +40,7 @@ export function statusLabel(status: string): string {
 const RECIPIENT_STATUS_ES: Record<string, string> = {
   pending: "Pendiente",
   sent: "Enviado",
+  delivered: "Entregado",
   failed: "Fallido",
   opted_out: "Dado de baja",
 };

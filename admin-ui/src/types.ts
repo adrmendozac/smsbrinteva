@@ -29,7 +29,12 @@ export interface RecipientCount {
   n: number;
 }
 
-export type RecipientStatus = "pending" | "sent" | "failed" | "opted_out";
+export type RecipientStatus =
+  | "pending"
+  | "sent"
+  | "delivered"
+  | "failed"
+  | "opted_out";
 
 export interface Recipient {
   id: number;

@@ -12,13 +12,22 @@ import { Spinner } from "./ui";
 type Filter = "all" | RecipientStatus;
 
 const STATUS_COLOR: Record<RecipientStatus, string> = {
-  sent: "var(--status-completed)",
+  delivered: "var(--status-completed)",
+  sent: "var(--status-scheduled)",
   failed: "var(--status-failed)",
   pending: "var(--status-sending)",
   opted_out: "var(--status-draft)",
 };
 
-const ORDER: RecipientStatus[] = ["sent", "failed", "pending", "opted_out"];
+// Delivered first: it is the outcome that actually answers "did it arrive?".
+// "sent" now means accepted by the carrier but no receipt back yet.
+const ORDER: RecipientStatus[] = [
+  "delivered",
+  "sent",
+  "failed",
+  "pending",
+  "opted_out",
+];
 
 /**
  * Which numbers a campaign actually reached. Loads on expand rather than with
