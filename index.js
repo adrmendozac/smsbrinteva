@@ -202,8 +202,10 @@ async function mirrorInboundToKommo({ phone, name, text, msgid }) {
 }
 
 // Mirror a message WE sent (AI/system) into the Kommo thread (silent, no re-send).
-async function mirrorOutboundToKommo({ phone, text, msgid, senderName }) {
-  if (!KOMMO.enabled || !KOMMO.mirrorAi || !KOMMO.scopeId || !KOMMO.secret || !KOMMO.botId) return;
+// `force` bypasses the KOMMO_MIRROR_AI gate: that flag governs AI replies, while
+// campaign blasts are mirrored on their own merits.
+async function mirrorOutboundToKommo({ phone, text, msgid, senderName, force = false }) {
+  if (!KOMMO.enabled || (!force && !KOMMO.mirrorAi) || !KOMMO.scopeId || !KOMMO.secret || !KOMMO.botId) return;
   try {
     const res = await kommo.importMessage({
       axios, scopeId: KOMMO.scopeId, secret: KOMMO.secret,
@@ -214,6 +216,12 @@ async function mirrorOutboundToKommo({ phone, text, msgid, senderName }) {
     console.error('[kommo] mirrorOutbound error:', err.message);
   }
 }
+
+// Campaign blasts are mirrored into Kommo as they send, so a seller opening the
+// chat sees what the customer was sent before any reply arrives. Attached to the
+// existing deps object (defined above, read at call time by lib/sendEngine.js).
+deps.mirrorCampaignToKommo = ({ phone, text, msgid }) =>
+  mirrorOutboundToKommo({ phone, text, msgid, senderName: 'Brinteva Worlds', force: true });
 
 // Report delivery progress of an agent reply back to Kommo (amojo enum:
 // -1 error, 0 sent, 1 delivered, 2 read).
@@ -377,6 +385,16 @@ app.post('/inbound', async (req, res) => {
     );
     if (convStatus[0].status === 'needs_human') {
       console.log(`Conversation ${conversationId} flagged for human — skipping AI`);
+      return;
+    }
+
+    // AI auto-reply is opt-in: set AI_AUTOREPLY=1 to enable. Default off so a
+    // missing env var never results in unattended messages to customers.
+    // The inbound message is still stored and mirrored into Kommo above, where
+    // an agent answers it. STOP/START/HELP compliance replies run earlier and
+    // are unaffected, as is the /api/suggest campaign drafting endpoint.
+    if (process.env.AI_AUTOREPLY !== '1') {
+      console.log(`AI auto-reply off — conversation ${conversationId} left for an agent`);
       return;
     }
 
