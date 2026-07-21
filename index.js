@@ -204,16 +204,23 @@ async function mirrorInboundToKommo({ phone, name, text, msgid }) {
 // Mirror a message WE sent (AI/system) into the Kommo thread (silent, no re-send).
 // `force` bypasses the KOMMO_MIRROR_AI gate: that flag governs AI replies, while
 // campaign blasts are mirrored on their own merits.
+// Resolves to the amojo-side message id, which is the only id the
+// delivery_status endpoint accepts (our own ref_id 404s there).
 async function mirrorOutboundToKommo({ phone, text, msgid, senderName, force = false }) {
-  if (!KOMMO.enabled || (!force && !KOMMO.mirrorAi) || !KOMMO.scopeId || !KOMMO.secret || !KOMMO.botId) return;
+  if (!KOMMO.enabled || (!force && !KOMMO.mirrorAi) || !KOMMO.scopeId || !KOMMO.secret || !KOMMO.botId) return null;
   try {
     const res = await kommo.importMessage({
       axios, scopeId: KOMMO.scopeId, secret: KOMMO.secret,
       payload: kommo.outboundPayload({ phone, text, msgid, senderName, botRefId: KOMMO.botId })
     });
-    if (res.status >= 300) console.error('[kommo] outbound import failed', res.status, JSON.stringify(res.data));
+    if (res.status >= 300) {
+      console.error('[kommo] outbound import failed', res.status, JSON.stringify(res.data));
+      return null;
+    }
+    return (res.data && res.data.new_message && res.data.new_message.msgid) || null;
   } catch (err) {
     console.error('[kommo] mirrorOutbound error:', err.message);
+    return null;
   }
 }
 
@@ -497,7 +504,7 @@ app.post('/status', async (req, res) => {
       }
 
       const [recips] = await db.execute(
-        `SELECT id, broadcast_id FROM broadcast_recipients WHERE vonage_message_id = ?`,
+        `SELECT id, kommo_msgid FROM broadcast_recipients WHERE vonage_message_id = ?`,
         [messageId]
       );
       if (recips.length > 0) {
@@ -506,13 +513,9 @@ app.post('/status', async (req, res) => {
           dbStatus,
           r.id
         ]);
-        // Campaign blasts are imported with a deterministic msgid, so the same
-        // value can be rebuilt here without storing a Kommo id per recipient.
-        await pushKommoDeliveryStatus(
-          `campaign-${r.broadcast_id}-${r.id}`,
-          kommoStatus,
-          `carrier status: ${s}`
-        );
+        if (r.kommo_msgid) {
+          await pushKommoDeliveryStatus(r.kommo_msgid, kommoStatus, `carrier status: ${s}`);
+        }
       }
     } catch (err) {
       console.error('Status update error:', err.message);
