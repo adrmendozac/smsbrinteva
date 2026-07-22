@@ -1,5 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowClockwise, CaretDown } from "@phosphor-icons/react";
+import {
+  ArrowClockwise,
+  ArrowCounterClockwise,
+  Broom,
+  CaretDown,
+} from "@phosphor-icons/react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import type { Campaign } from "../types";
@@ -22,6 +27,31 @@ export function History({
   // One campaign open at a time -- recipient lists are long, and comparing two
   // at once is not something this screen is for.
   const [expandedId, setExpandedId] = useState<number | null>(null);
+
+  const [tab, setTab] = useState<"active" | "archived">("active");
+  const [archiving, setArchiving] = useState(false);
+
+  // Archive state lives on the server (broadcasts.archived_at), so it is the
+  // same for every admin and every browser. Nothing is deleted — the campaign
+  // and its broadcast_recipients rows stay put; only which tab it appears
+  // under changes. The list is refetched afterwards so counts stay truthful.
+  async function setArchived(ids: number[], archived: boolean) {
+    if (ids.length === 0) return;
+    setArchiving(true);
+    try {
+      await Promise.all(ids.map((id) => api.archiveCampaign(id, archived)));
+      setError("");
+    } catch {
+      setError(
+        archived
+          ? "No se pudo archivar. Inténtalo de nuevo."
+          : "No se pudo restaurar. Inténtalo de nuevo."
+      );
+    } finally {
+      setArchiving(false);
+      await load();
+    }
+  }
 
   const load = useCallback(async () => {
     try {
@@ -50,6 +80,10 @@ export function History({
     return () => clearInterval(t);
   }, [inFlight, load]);
 
+  const active = campaigns.filter((c) => !c.archived_at);
+  const archived = campaigns.filter((c) => c.archived_at);
+  const visible = tab === "active" ? active : archived;
+
   if (loading) {
     return (
       <div className="flex justify-center py-12 text-[var(--text-muted)]">
@@ -63,12 +97,62 @@ export function History({
       {/* Row centres on mobile to match the rail above it; the cards below stay
           left-aligned so the data keeps a single reading edge. */}
       <div className="flex flex-col items-center gap-2 sm:flex-row sm:justify-between">
-        <h2 className="text-sm font-medium text-[var(--text-muted)]">
-          {campaigns.length} campaña{campaigns.length === 1 ? "" : "s"}
-        </h2>
-        <Button variant="ghost" onClick={load} type="button">
-          <ArrowClockwise size={16} weight="light" aria-hidden="true" /> Actualizar
-        </Button>
+        {/* Sub-tabs live inside Historial rather than the main nav — archived
+            campaigns are a view of this screen, not a separate destination. */}
+        <div
+          role="tablist"
+          className="inline-flex rounded-full bg-[var(--surface-sunken)] p-1"
+        >
+          {(
+            [
+              ["active", "Activas", active.length],
+              ["archived", "Archivadas", archived.length],
+            ] as const
+          ).map(([key, label, count]) => (
+            <button
+              key={key}
+              role="tab"
+              type="button"
+              aria-selected={tab === key}
+              onClick={() => setTab(key)}
+              className={cn(
+                "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+                tab === key
+                  ? "bg-[var(--surface-elevated)] text-[var(--text-primary)] shadow-[var(--shadow-ambient)]"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              )}
+            >
+              {label} ({count})
+            </button>
+          ))}
+        </div>
+
+        <div className="flex items-center gap-2">
+          {tab === "active" && active.length > 0 && (
+            <Button
+              variant="ghost"
+              onClick={() => setArchived(active.map((c) => c.id), true)}
+              loading={archiving}
+              type="button"
+            >
+              <Broom size={16} weight="light" aria-hidden="true" /> Archivar todas
+            </Button>
+          )}
+          {tab === "archived" && archived.length > 0 && (
+            <Button
+              variant="ghost"
+              onClick={() => setArchived(archived.map((c) => c.id), false)}
+              loading={archiving}
+              type="button"
+            >
+              <ArrowCounterClockwise size={16} weight="light" aria-hidden="true" />{" "}
+              Restaurar todas
+            </Button>
+          )}
+          <Button variant="ghost" onClick={load} type="button">
+            <ArrowClockwise size={16} weight="light" aria-hidden="true" /> Actualizar
+          </Button>
+        </div>
       </div>
 
       {error && (
@@ -77,20 +161,26 @@ export function History({
         </p>
       )}
 
-      {campaigns.length === 0 ? (
+      {visible.length === 0 ? (
         <Card>
           <p className="py-6 text-center text-sm text-[var(--text-muted)]">
-            Aún no hay campañas.
+            {tab === "archived"
+              ? "No hay campañas archivadas."
+              : campaigns.length === 0
+                ? "Aún no hay campañas."
+                : "Todas las campañas están archivadas."}
           </p>
         </Card>
       ) : (
         <ul className="space-y-2">
-          {campaigns.map((c) => (
+          {visible.map((c) => (
             <li key={c.id}>
               <CampaignRow
                 campaign={c}
                 expanded={expandedId === c.id}
                 onToggle={() => setExpandedId(expandedId === c.id ? null : c.id)}
+                archived={tab === "archived"}
+                onArchiveToggle={() => setArchived([c.id], tab === "active")}
               />
             </li>
           ))}
@@ -104,10 +194,14 @@ function CampaignRow({
   campaign: c,
   expanded,
   onToggle,
+  archived,
+  onArchiveToggle,
 }: {
   campaign: Campaign;
   expanded: boolean;
   onToggle: () => void;
+  archived: boolean;
+  onArchiveToggle: () => void;
 }) {
   const live = c.status === "sending";
   const root = useRef<HTMLDivElement>(null);
@@ -188,6 +282,18 @@ function CampaignRow({
         </div>
         <Counts campaign={c} />
       </button>
+
+      {/* Sibling of the toggle, never nested inside it — a button within a
+          button is invalid and breaks keyboard activation. */}
+      <div className="flex justify-end border-t border-[var(--border)] px-5 py-2">
+        <button
+          type="button"
+          onClick={onArchiveToggle}
+          className="text-xs font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
+        >
+          {archived ? "Restaurar" : "Archivar"}
+        </button>
+      </div>
 
       {expanded && (
         <div

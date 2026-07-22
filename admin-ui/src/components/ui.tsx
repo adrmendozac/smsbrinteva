@@ -8,15 +8,19 @@ interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   loading?: boolean;
 }
 
+// Every button is brand crimson on white text. --brand is #ca1044, taken from
+// brintevaworlds.com; using the token rather than the literal keeps buttons in
+// step if the palette moves.
+const BRAND_SURFACE =
+  "bg-[var(--brand)] text-white shadow-[var(--shadow-ambient)] hover:brightness-110 disabled:opacity-50";
+
+// The variant prop is kept so call sites stay valid and the distinction can be
+// restored, but all four currently render identically.
 const VARIANTS: Record<Variant, string> = {
-  primary:
-    "bg-[var(--primary)] text-[var(--primary-fg)] shadow-[var(--shadow-ambient)] hover:brightness-125 disabled:opacity-50",
-  secondary:
-    "bg-[var(--surface-elevated)] text-[var(--text-primary)] shadow-[0_0_0_1px_var(--hairline),var(--shadow-ambient)] hover:bg-white disabled:opacity-50",
-  ghost:
-    "bg-transparent text-[var(--text-muted)] hover:text-[var(--text-primary)] hover:bg-white/70 disabled:opacity-50",
-  brand:
-    "bg-[var(--brand)] text-white shadow-[var(--shadow-ambient)] hover:brightness-110 disabled:opacity-50",
+  primary: BRAND_SURFACE,
+  secondary: BRAND_SURFACE,
+  ghost: BRAND_SURFACE,
+  brand: BRAND_SURFACE,
 };
 
 // Weighted curve + a slight press scale so the control feels physical rather
@@ -165,17 +169,28 @@ function label(status: string): string {
 export function Field({
   label,
   hint,
+  required,
+  className = "",
   children,
 }: {
   label: string;
   hint?: ReactNode;
+  required?: boolean;
+  className?: string;
   children: ReactNode;
 }) {
   return (
-    <label className="block">
+    <label className={`block ${className}`}>
       <div className="mb-1.5 flex items-baseline justify-between">
         <span className="text-sm font-medium text-[var(--text-primary)]">
           {label}
+          {/* Decorative only — the control itself carries `required`, which is
+              what assistive tech announces. */}
+          {required && (
+            <span aria-hidden="true" className="ml-1 text-[var(--brand)]">
+              *
+            </span>
+          )}
         </span>
         {hint && <span className="text-xs text-[var(--text-muted)]">{hint}</span>}
       </div>

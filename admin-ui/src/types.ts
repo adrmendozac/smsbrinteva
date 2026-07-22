@@ -22,6 +22,9 @@ export interface Campaign {
   total_count: number;
   created_by: string | null;
   created_at: string;
+  // NULL while active; a timestamp once archived. Archiving never deletes the
+  // campaign or its recipient rows.
+  archived_at: string | null;
 }
 
 export interface RecipientCount {

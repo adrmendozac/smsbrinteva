@@ -9,12 +9,14 @@ export function AudiencePicker({
   contacts,
   selectedIds,
   onToggleContact,
+  onSetContactsSelected,
   csvPhones,
   onCsvPhones,
 }: {
   contacts: Contact[];
   selectedIds: Set<number>;
   onToggleContact: (id: number) => void;
+  onSetContactsSelected: (ids: number[], selected: boolean) => void;
   csvPhones: string[];
   onCsvPhones: (phones: string[]) => void;
 }) {
@@ -30,6 +32,14 @@ export function AudiencePicker({
         c.phone.includes(q) || (c.name ?? "").toLowerCase().includes(q)
     );
   }, [contacts, query]);
+
+  // "Select all" acts on what is on screen. With a search active that is the
+  // matches, not the whole book — selecting people the user cannot see would
+  // mean sending them a real SMS.
+  const filteredIds = useMemo(() => filtered.map((c) => c.id), [filtered]);
+  const allFilteredSelected =
+    filtered.length > 0 && filteredIds.every((id) => selectedIds.has(id));
+  const searching = query.trim() !== "";
 
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -62,6 +72,30 @@ export function AudiencePicker({
               className={cn(inputClass, "pl-8")}
             />
           </div>
+        </div>
+        {/* The running total counts every selection, including any made under a
+            previous search, so a filtered "select all" can never read as
+            "everyone". */}
+        <div className="flex items-center justify-between gap-2 border-b border-[var(--border)] px-3 py-2">
+          <span className="text-xs text-[var(--text-muted)]">
+            {selectedIds.size} de {contacts.length} seleccionado
+            {selectedIds.size === 1 ? "" : "s"}
+            {searching && ` · ${filtered.length} en la búsqueda`}
+          </span>
+          <button
+            type="button"
+            disabled={filtered.length === 0}
+            onClick={() =>
+              onSetContactsSelected(filteredIds, !allFilteredSelected)
+            }
+            className="shrink-0 text-xs font-medium text-[var(--focus)] hover:underline disabled:pointer-events-none disabled:opacity-40"
+          >
+            {allFilteredSelected
+              ? "Quitar selección"
+              : searching
+                ? `Seleccionar ${filtered.length}`
+                : "Seleccionar todos"}
+          </button>
         </div>
         <ul className="max-h-56 overflow-y-auto p-1">
           {filtered.length === 0 && (

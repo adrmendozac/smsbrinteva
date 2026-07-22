@@ -56,4 +56,9 @@ export const api = {
   getCampaign: (id: number) => request<CampaignDetail>(`/api/campaigns/${id}`),
   sendCampaign: (id: number) =>
     request<{ ok: boolean }>(`/api/campaigns/${id}/send`, { method: "POST" }),
+  archiveCampaign: (id: number, archived: boolean) =>
+    request<{ ok: boolean; id: number; archived_at: string | null }>(
+      `/api/campaigns/${id}/archive`,
+      { method: "PATCH", body: JSON.stringify({ archived }) }
+    ),
 };

@@ -39,6 +39,17 @@ export function Composer({
     });
   }
 
+  // Bulk select/deselect. Scoped to whatever the picker passes in — which is the
+  // filtered list, not every contact — so a search followed by "select all"
+  // never quietly picks up people the user cannot see.
+  function setContactsSelected(ids: number[], selected: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      for (const id of ids) selected ? next.add(id) : next.delete(id);
+      return next;
+    });
+  }
+
   async function suggest() {
     if (!message.trim()) {
       setResult({
@@ -116,24 +127,32 @@ export function Composer({
 
   return (
     <div className="space-y-4">
-      <Card className="space-y-4">
-        <Field label="Nombre de la campaña">
+      <Card className="space-y-7">
+        <Field label="Nombre de la campaña" required>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Ej. Promo Italia · Junio"
+            // broadcasts.name is varchar(200) NOT NULL; stop at the column
+            // width rather than letting MySQL truncate on insert.
+            maxLength={200}
+            required
             className={inputClass}
           />
         </Field>
 
+        {/* Naming the campaign and choosing who receives it are separate steps,
+            so the audience block starts further down than the card's own rhythm. */}
         <Field
+          className="pt-5"
           label="Audiencia"
-          hint={`≈ ${approxRecipients} destinatario${approxRecipients === 1 ? "" : "s"}`}
+          hint={`${approxRecipients} destinatario${approxRecipients === 1 ? "" : "s"}`}
         >
           <AudiencePicker
             contacts={contacts}
             selectedIds={selectedIds}
             onToggleContact={toggleContact}
+            onSetContactsSelected={setContactsSelected}
             csvPhones={csvPhones}
             onCsvPhones={setCsvPhones}
           />
@@ -169,9 +188,14 @@ export function Composer({
           </p>
         )}
 
-        <Button variant="secondary" onClick={suggest} loading={suggesting} type="button">
-          <Sparkle size={16} weight="fill" /> Sugerir con IA
-        </Button>
+        {/* Wrapper carries the top spacing: the card's space-y-* wins over a
+            margin set on the button itself, and padding here leaves the
+            button's own dimensions alone. */}
+        <div className="pt-5">
+          <Button variant="secondary" onClick={suggest} loading={suggesting} type="button">
+            <Sparkle size={16} weight="fill" /> Sugerir con IA
+          </Button>
+        </div>
       </Card>
 
       <Card className="space-y-4">
@@ -196,7 +220,7 @@ export function Composer({
           )}
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 pt-5">
           <Button onClick={send} loading={submitting} disabled={!canSend}>
             <PaperPlaneTilt size={16} weight="fill" />
             {mode === "now" ? "Enviar" : "Programar"}
