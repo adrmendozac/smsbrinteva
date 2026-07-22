@@ -19,6 +19,9 @@ export function Composer({
   const [name, setName] = useState("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [csvPhones, setCsvPhones] = useState<string[]>([]);
+  // Hand-typed numbers. Kept apart from csvPhones so clearing a file doesn't
+  // drop numbers you typed by hand (and vice versa); merged only at send.
+  const [manualPhones, setManualPhones] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [mode, setMode] = useState<Mode>("now");
   const [scheduledAt, setScheduledAt] = useState("");
@@ -29,7 +32,8 @@ export function Composer({
 
   const sanitized = useMemo(() => sanitizeForSMS(message), [message]);
   const segments = smsSegments(sanitized.length);
-  const approxRecipients = selectedIds.size + csvPhones.length;
+  const approxRecipients =
+    selectedIds.size + csvPhones.length + manualPhones.length;
 
   function toggleContact(id: number) {
     setSelectedIds((prev) => {
@@ -91,7 +95,9 @@ export function Composer({
         name: name.trim(),
         body: message,
         contactIds: [...selectedIds],
-        phones: csvPhones,
+        // CSV upload and hand-typed numbers are both just phone strings to the
+        // backend, which upserts, dedupes, and drops opt-outs.
+        phones: [...csvPhones, ...manualPhones],
         scheduledAt: scheduledIso,
       });
 
@@ -113,6 +119,7 @@ export function Composer({
       setMessage("");
       setSelectedIds(new Set());
       setCsvPhones([]);
+      setManualPhones([]);
       setScheduledAt("");
       onCreated();
     } catch (e) {
@@ -155,6 +162,8 @@ export function Composer({
             onSetContactsSelected={setContactsSelected}
             csvPhones={csvPhones}
             onCsvPhones={setCsvPhones}
+            manualPhones={manualPhones}
+            onManualPhones={setManualPhones}
           />
           <p className="mt-1.5 text-xs text-[var(--text-muted)]">
             Se eliminan duplicados y quienes cancelaron (opt-out) al momento de enviar.
