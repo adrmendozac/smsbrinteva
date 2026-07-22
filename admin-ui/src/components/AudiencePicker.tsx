@@ -304,7 +304,7 @@ function ManualEntry({
         {phones.map((p) => (
           <span
             key={p}
-            className="inline-flex items-center gap-1 rounded-full bg-[var(--surface-sunken)] py-1 pl-2.5 pr-1 text-sm"
+            className="inline-flex items-center gap-1 rounded-full bg-[var(--brand)] py-1 pl-2.5 pr-1 text-sm text-white"
           >
             <span className="font-mono">{formatUsPhone(p)}</span>
             <button
@@ -314,7 +314,7 @@ function ManualEntry({
                 remove(p);
               }}
               aria-label={`Quitar ${formatUsPhone(p)}`}
-              className="rounded-full p-0.5 text-[var(--text-muted)] transition-colors hover:text-[var(--status-failed)]"
+              className="rounded-full p-0.5 text-white/70 transition-colors hover:text-white"
             >
               <X size={12} />
             </button>
