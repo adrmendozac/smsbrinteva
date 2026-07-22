@@ -9,6 +9,7 @@ const { registerCampaignRoutes } = require('./lib/campaigns');
 const { startScheduler } = require('./lib/scheduler');
 const kommo = require('./lib/kommo');
 const { sendMessage } = require('./lib/vonage');
+const { registerVoiceRoutes } = require('./lib/voice');
 
 const app = express();
 // Capture the raw request bytes so the Kommo webhook can verify X-Signature
@@ -174,6 +175,12 @@ const deps = {
 };
 registerCampaignRoutes(app, deps, requireAuth);
 startScheduler(deps);
+
+// ── Inbound voice ──────────────────────────────────────────────────────────
+// The SMS number also carries VOICE and is published as the support line, so
+// calls route to the VBC call group. Inert until the Vonage application gains a
+// voice capability pointing at /voice/answer.
+registerVoiceRoutes(app, deps);
 
 // ── Kommo Chats API gateway ────────────────────────────────────────────────
 // MySQL stays the source of truth; Kommo is the agent-facing mirror. Everything
