@@ -81,12 +81,20 @@ export function Recipients({ campaignId, live }: { campaignId: number; live: boo
   useGSAP(
     () => {
       gsap.matchMedia().add("(prefers-reduced-motion: no-preference)", () => {
-        gsap.from("tbody tr", {
-          opacity: 0,
-          y: -4,
-          duration: 0.25,
+        // The component renders a spinner / empty state before the list mounts,
+        // so the scope ref can still be null when this effect fires.
+        const rows = listRef.current?.querySelectorAll("tbody tr");
+        if (!rows?.length) return;
+        gsap.from(rows, {
+          autoAlpha: 0,
+          y: 6,
+          duration: 0.45,
           ease: "mass",
-          stagger: { each: 0.02, amount: Math.min(0.02 * shown.length, 0.4) },
+          stagger: { each: 0.03, amount: Math.min(0.03 * shown.length, 0.5) },
+          // Layer-promote for the duration of the reveal, then release so the
+          // rows can be skipped by content-visibility again once at rest.
+          onStart: () => gsap.set(rows, { willChange: "transform, opacity" }),
+          onComplete: () => gsap.set(rows, { clearProps: "willChange" }),
         });
       });
     },

@@ -1,9 +1,14 @@
-import { SignOut, PaperPlaneTilt, ClockCounterClockwise } from "@phosphor-icons/react";
+import {
+  SignOut,
+  PaperPlaneTilt,
+  ClockCounterClockwise,
+  AddressBook,
+} from "@phosphor-icons/react";
 import type { ReactNode } from "react";
 import logo from "../assets/brinteva-logo.png";
 import { cn } from "../lib/cn";
 
-export type Tab = "compose" | "history";
+export type Tab = "compose" | "history" | "contacts";
 
 /**
  * Floating island rather than an edge-to-edge bar glued to the viewport: a
@@ -48,6 +53,10 @@ export function Header({
           <TabButton active={tab === "compose"} onClick={() => onTab("compose")}>
             <PaperPlaneTilt size={16} weight="light" aria-hidden="true" />
             Nueva campaña
+          </TabButton>
+          <TabButton active={tab === "contacts"} onClick={() => onTab("contacts")}>
+            <AddressBook size={16} weight="light" aria-hidden="true" />
+            Contactos
           </TabButton>
           <TabButton active={tab === "history"} onClick={() => onTab("history")}>
             <ClockCounterClockwise size={16} weight="light" aria-hidden="true" />

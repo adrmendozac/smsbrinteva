@@ -6,6 +6,7 @@ const mysql = require('mysql2/promise');
 const jwt = require('jsonwebtoken');
 const { sanitizeForSMS } = require('./lib/sms');
 const { registerCampaignRoutes } = require('./lib/campaigns');
+const { registerContactRoutes } = require('./lib/contacts');
 const { startScheduler } = require('./lib/scheduler');
 const kommo = require('./lib/kommo');
 const { sendMessage } = require('./lib/vonage');
@@ -174,6 +175,7 @@ const deps = {
   sleep: ms => new Promise(r => setTimeout(r, ms))
 };
 registerCampaignRoutes(app, deps, requireAuth);
+registerContactRoutes(app, deps, requireAuth);
 startScheduler(deps);
 
 // ── Inbound voice ──────────────────────────────────────────────────────────

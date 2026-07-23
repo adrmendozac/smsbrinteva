@@ -165,9 +165,6 @@ export function Composer({
             manualPhones={manualPhones}
             onManualPhones={setManualPhones}
           />
-          <p className="mt-1.5 text-xs text-[var(--text-muted)]">
-            Se eliminan duplicados y quienes cancelaron (opt-out) al momento de enviar.
-          </p>
         </Field>
       </Card>
 
@@ -176,7 +173,7 @@ export function Composer({
           label="Mensaje"
           hint={
             <span>
-              {sanitized.length} car. · {segments} SMS
+              {sanitized.length} car.  {segments} SMS
             </span>
           }
         >

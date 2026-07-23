@@ -1,4 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
+import { useRef } from "react";
+import gsap from "gsap";
+import { useGSAP } from "@gsap/react";
 import { cn } from "../lib/cn";
 
 type Variant = "primary" | "secondary" | "ghost" | "brand";
@@ -109,9 +112,35 @@ export function Card({
   ref?: Ref<HTMLDivElement>;
   padded?: boolean;
 }) {
+  // Own the outer node so we can animate it, while still honouring the ref a
+  // caller passes (History uses it as the scope for its expand tween).
+  const shell = useRef<HTMLDivElement>(null);
+  const setRef = (node: HTMLDivElement | null) => {
+    shell.current = node;
+    if (typeof ref === "function") ref(node);
+    else if (ref) (ref as { current: HTMLDivElement | null }).current = node;
+  };
+
+  // Every card rises into place on mount. Skipped under prefers-reduced-motion;
+  // runs once (no deps) so re-renders — expanding a campaign, a poll tick — do
+  // not replay it.
+  useGSAP(
+    () => {
+      gsap.matchMedia().add("(prefers-reduced-motion: no-preference)", () => {
+        gsap.from(shell.current, {
+          opacity: 0,
+          y: 30,
+          duration: 1,
+          ease: "power2.out",
+        });
+      });
+    },
+    { scope: shell }
+  );
+
   return (
     <div
-      ref={ref}
+      ref={setRef}
       className={cn("p-1.5", className)}
       style={{
         borderRadius: "var(--r-shell)",

@@ -227,23 +227,26 @@ function CampaignRow({
 
           gsap.to(caret.current, {
             rotate: expanded ? 180 : 0,
-            duration: reduced ? 0 : 0.4,
+            duration: reduced ? 0 : 0.5,
             ease: EASE,
           });
 
           if (!expanded || !panel.current) return;
 
-          // Height cannot be interpolated to `auto` in CSS, so GSAP measures it.
-          // The trade-off is a layout-triggering property -- acceptable here
-          // because it animates one small panel, not a scrolling surface.
+          // Animate the grid track, not `height: auto`. GSAP interpolates the
+          // fraction (0fr -> 1fr) and the browser composites the resize instead
+          // of laying out the recipient list every frame.
           gsap.fromTo(
             panel.current,
-            { height: 0, opacity: 0 },
+            { gridTemplateRows: "0fr", autoAlpha: 0 },
             {
-              height: "auto",
-              opacity: 1,
-              duration: reduced ? 0 : 0.5,
+              gridTemplateRows: "1fr",
+              autoAlpha: 1,
+              duration: reduced ? 0 : 0.65,
               ease: EASE,
+              onStart: () =>
+                gsap.set(panel.current, { willChange: "grid-template-rows, opacity" }),
+              onComplete: () => gsap.set(panel.current, { clearProps: "willChange" }),
             }
           );
         }
@@ -296,12 +299,18 @@ function CampaignRow({
       </div>
 
       {expanded && (
+        // grid-template-rows: 0fr -> 1fr is a compositor-friendly reveal: the
+        // inner track resizes without a per-frame layout of the content the way
+        // an animated `height: auto` forced. The child must clip its own
+        // overflow so nothing shows past the collapsing track.
         <div
           ref={panel}
           id={`recipients-${c.id}`}
-          className="overflow-hidden border-t border-[var(--border)]"
+          className="grid border-t border-[var(--border)] [grid-template-rows:0fr]"
         >
-          <Recipients campaignId={c.id} live={live} />
+          <div className="overflow-hidden">
+            <Recipients campaignId={c.id} live={live} />
+          </div>
         </div>
       )}
     </Card>

@@ -8,6 +8,7 @@ import { Login } from "./components/Login";
 import { Header, type Tab } from "./components/Header";
 import { Composer } from "./components/Composer";
 import { History } from "./components/History";
+import { Contacts } from "./components/Contacts";
 import { Footer } from "./components/Footer";
 import { Eyebrow, Spinner } from "./components/ui";
 
@@ -18,6 +19,7 @@ export default function App() {
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [refreshSignal, setRefreshSignal] = useState(0);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [contactTotal, setContactTotal] = useState<number | null>(null);
 
   useEffect(() => {
     if (!authed) return;
@@ -47,7 +49,12 @@ export default function App() {
 
       <main className="mx-auto max-w-6xl px-4 pt-12 pb-24 sm:pt-16">
         <div className="grid gap-10 md:grid-cols-12 md:gap-12">
-          <Rail tab={tab} contacts={contacts} campaigns={campaigns} />
+          <Rail
+            tab={tab}
+            contacts={contacts}
+            campaigns={campaigns}
+            contactTotal={contactTotal}
+          />
 
           <div className="md:col-span-7 lg:col-span-8">
             {tab === "compose" ? (
@@ -58,6 +65,8 @@ export default function App() {
               ) : (
                 <Composer contacts={contacts} onCreated={onCreated} />
               )
+            ) : tab === "contacts" ? (
+              <Contacts onCount={setContactTotal} />
             ) : (
               <History refreshSignal={refreshSignal} onLoaded={setCampaigns} />
             )}
@@ -79,22 +88,29 @@ function Rail({
   tab,
   contacts,
   campaigns,
+  contactTotal,
 }: {
   tab: Tab;
   contacts: Contact[];
   campaigns: Campaign[];
+  contactTotal: number | null;
 }) {
   const root = useRef<HTMLDivElement>(null);
 
   useGSAP(
     () => {
       gsap.matchMedia().add("(prefers-reduced-motion: no-preference)", () => {
-        gsap.from(root.current!.children, {
+        const kids = root.current!.children;
+        gsap.from(kids, {
           y: 24,
-          opacity: 0,
-          duration: 0.8,
+          autoAlpha: 0,
+          duration: 1,
           ease: "mass",
-          stagger: 0.08,
+          stagger: 0.1,
+          // Promote to a compositor layer for the tween only, then release it —
+          // a permanent will-change would keep every heading on its own layer.
+          onStart: () => gsap.set(kids, { willChange: "transform, opacity" }),
+          onComplete: () => gsap.set(kids, { clearProps: "willChange" }),
         });
       });
     },
@@ -103,6 +119,12 @@ function Rail({
 
   const sent = campaigns.reduce((n, c) => n + (c.sent_count ?? 0), 0);
 
+  const copy = {
+    compose: { eyebrow: "Envío", title: ["Escribe", "una campaña"] },
+    contacts: { eyebrow: "Directorio", title: ["Tus", "contactos"] },
+    history: { eyebrow: "Registro", title: ["Todo lo", "que enviaste"] },
+  }[tab];
+
   return (
     // Centred on mobile where the rail sits above the work surface as a header;
     // left-aligned from md: up, where it becomes a true editorial column.
@@ -110,31 +132,25 @@ function Rail({
       ref={root}
       className="text-center md:col-span-5 md:sticky md:top-28 md:self-start md:text-left lg:col-span-4"
     >
-      <Eyebrow>{tab === "compose" ? "Envío" : "Registro"}</Eyebrow>
+      <Eyebrow>{copy.eyebrow}</Eyebrow>
 
       <h1 className="mt-5 text-pretty text-4xl font-semibold leading-[0.95] tracking-[-0.03em] sm:text-5xl lg:text-6xl">
-        {tab === "compose" ? (
-          <>
-            Escribe
-            <br />
-            una campaña
-          </>
-        ) : (
-          <>
-            Todo lo
-            <br />
-            que enviaste
-          </>
-        )}
+        {copy.title[0]}
+        <br />
+        {copy.title[1]}
       </h1>
 
       <dl className="mt-8 flex justify-center gap-8 md:justify-start">
         <div>
           <dt className="text-xs text-[var(--text-muted)]">
-            {tab === "compose" ? "Contactos" : "Campañas"}
+            {tab === "history" ? "Campañas" : "Contactos"}
           </dt>
           <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-tight">
-            {tab === "compose" ? contacts.length : campaigns.length}
+            {tab === "history"
+              ? campaigns.length
+              : tab === "contacts"
+                ? (contactTotal ?? contacts.length)
+                : contacts.length}
           </dd>
         </div>
         {tab === "history" && (

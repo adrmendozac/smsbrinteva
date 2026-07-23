@@ -42,6 +42,22 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const api = {
   getContacts: () => request<Contact[]>("/api/contacts"),
+  // Every contact, opted-in or not, for the contact manager.
+  getAllContacts: () => request<Contact[]>("/api/contacts/all"),
+  createContact: (payload: { name: string; phone: string }) =>
+    request<Contact>("/api/contacts", {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  updateContact: (id: number, payload: { name?: string; phone?: string }) =>
+    request<Contact>(`/api/contacts/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(payload),
+    }),
+  deleteContact: (id: number) =>
+    request<{ ok: boolean; id: number }>(`/api/contacts/${id}`, {
+      method: "DELETE",
+    }),
   suggest: (prompt: string) =>
     request<{ text: string }>("/api/suggest", {
       method: "POST",
