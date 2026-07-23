@@ -2,71 +2,80 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
-import { MagnifyingGlass, Plus, PencilSimple, Trash } from "@phosphor-icons/react";
+import {
+  MagnifyingGlass,
+  Plus,
+  PencilSimple,
+  Archive,
+  ArrowCounterClockwise,
+} from "@phosphor-icons/react";
 import type { Contact } from "../types";
 import { api, ApiError } from "../lib/api";
 import { cn } from "../lib/cn";
 import { normalizeUsPhone, formatUsPhone } from "../lib/phone";
 import { Button, Card, Spinner, inputClass } from "./ui";
 
+type SubTab = "active" | "archived";
+
 const reduceMotion = () =>
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
 /**
- * Contact manager: the whole book, opted-in or not. Editing happens in place —
- * the chosen row grows and lifts while the rest recede; deleting swipes the row
- * out to the left. Distinct from the audience picker, which hides opted-out
- * people; here they stay, tagged.
+ * Contact manager. Two sub-tabs — Activos and Archivados — mirror Historial.
+ * Editing happens in place; "Archivar" soft-archives a contact (it drops out of
+ * Activos and the campaign audience picker but keeps its send history), and
+ * "Restaurar" brings it back.
  */
 export function Contacts({ onCount }: { onCount: (n: number | null) => void }) {
   const [contacts, setContacts] = useState<Contact[] | null>(null);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [tab, setTab] = useState<SubTab>("active");
 
   useEffect(() => {
     api
       .getAllContacts()
-      .then((list) => {
-        setContacts(list);
-        onCount(list.length);
-      })
+      .then(setContacts)
       .catch(() =>
         setError(
           "No se pudieron cargar los contactos. Recarga la página para reintentar."
         )
       );
-    // Load once on mount; onCount is a stable setState.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // The rail counts reachable (active) contacts.
+  useEffect(() => {
+    if (contacts) onCount(contacts.filter((c) => !c.archived_at).length);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contacts]);
+
+  const active = useMemo(
+    () => (contacts ?? []).filter((c) => !c.archived_at),
+    [contacts]
+  );
+  const archived = useMemo(
+    () => (contacts ?? []).filter((c) => c.archived_at),
+    [contacts]
+  );
+
   const filtered = useMemo(() => {
+    const base = tab === "active" ? active : archived;
     const q = query.trim().toLowerCase();
-    if (!contacts) return [];
-    if (!q) return contacts;
-    return contacts.filter(
+    if (!q) return base;
+    return base.filter(
       (c) => c.phone.includes(q) || (c.name ?? "").toLowerCase().includes(q)
     );
-  }, [contacts, query]);
+  }, [tab, active, archived, query]);
 
-  function saved(updated: Contact) {
+  // Replace a contact in place (after edit or archive/restore). Archiving flips
+  // archived_at, so the row simply falls out of the current tab's filter.
+  function replace(updated: Contact) {
     setContacts((prev) =>
       (prev ?? []).map((c) => (c.id === updated.id ? updated : c))
     );
-    setEditingId(null);
   }
 
-  function deleted(id: number) {
-    setContacts((prev) => {
-      const next = (prev ?? []).filter((c) => c.id !== id);
-      onCount(next.length);
-      return next;
-    });
-  }
-
-  // Deal the rows in behind the card on load and when the search changes — but
-  // not when a single row is edited or deleted (those keyed on `query`, which
-  // neither touches). Reduced-motion skips it.
   const listRef = useRef<HTMLUListElement>(null);
   useGSAP(
     () => {
@@ -84,7 +93,7 @@ export function Contacts({ onCount }: { onCount: (n: number | null) => void }) {
         });
       });
     },
-    { dependencies: [query], scope: listRef }
+    { dependencies: [query, tab], scope: listRef }
   );
 
   if (error) {
@@ -101,8 +110,47 @@ export function Contacts({ onCount }: { onCount: (n: number | null) => void }) {
 
   return (
     <Card padded={false}>
-      <div className="flex items-center gap-3 p-4">
-        <div className="relative flex-1">
+      <div className="space-y-3 p-4">
+        <div className="flex items-center justify-between gap-3">
+          {/* Sub-tabs live inside Contactos, the same way Historial splits
+              active from archived — a view of this screen, not a nav change. */}
+          <div
+            role="tablist"
+            className="inline-flex rounded-full bg-[var(--surface-sunken)] p-1"
+          >
+            {(
+              [
+                ["active", "Activos", active.length],
+                ["archived", "Archivados", archived.length],
+              ] as const
+            ).map(([key, label, count]) => (
+              <button
+                key={key}
+                role="tab"
+                type="button"
+                aria-selected={tab === key}
+                onClick={() => setTab(key)}
+                className={cn(
+                  "rounded-full px-4 py-1.5 text-sm font-medium transition-colors",
+                  tab === key
+                    ? "bg-[var(--surface-elevated)] text-[var(--text-primary)] shadow-[var(--shadow-ambient)]"
+                    : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+                )}
+              >
+                {label} ({count})
+              </button>
+            ))}
+          </div>
+
+          {tab === "active" && (
+            <Button variant="brand" className="shrink-0 px-4 py-2">
+              <Plus size={16} weight="bold" aria-hidden="true" />
+              Agregar
+            </Button>
+          )}
+        </div>
+
+        <div className="relative">
           <MagnifyingGlass
             size={16}
             className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
@@ -114,17 +162,15 @@ export function Contacts({ onCount }: { onCount: (n: number | null) => void }) {
             className={cn(inputClass, "pl-8")}
           />
         </div>
-        <Button variant="brand" className="shrink-0 px-4 py-2">
-          <Plus size={16} weight="bold" aria-hidden="true" />
-          Agregar
-        </Button>
       </div>
 
       {filtered.length === 0 ? (
         <p className="border-t border-[var(--border)] px-4 py-10 text-center text-sm text-[var(--text-muted)]">
           {query.trim()
             ? "Ningún contacto coincide con la búsqueda."
-            : "Aún no hay contactos. Agrega el primero."}
+            : tab === "archived"
+              ? "No hay contactos archivados."
+              : "Aún no hay contactos. Agrega el primero."}
         </p>
       ) : (
         <ul
@@ -135,12 +181,16 @@ export function Contacts({ onCount }: { onCount: (n: number | null) => void }) {
             <ContactRow
               key={c.id}
               contact={c}
+              archived={tab === "archived"}
               isEditing={editingId === c.id}
               dimmed={editingId !== null && editingId !== c.id}
               onEnter={() => setEditingId(c.id)}
               onCancel={() => setEditingId(null)}
-              onSaved={saved}
-              onDeleted={deleted}
+              onSaved={(u) => {
+                replace(u);
+                setEditingId(null);
+              }}
+              onArchived={replace}
             />
           ))}
         </ul>
@@ -151,26 +201,26 @@ export function Contacts({ onCount }: { onCount: (n: number | null) => void }) {
 
 function ContactRow({
   contact,
+  archived,
   isEditing,
   dimmed,
   onEnter,
   onCancel,
   onSaved,
-  onDeleted,
+  onArchived,
 }: {
   contact: Contact;
+  archived: boolean;
   isEditing: boolean;
   dimmed: boolean;
   onEnter: () => void;
   onCancel: () => void;
   onSaved: (c: Contact) => void;
-  onDeleted: (id: number) => void;
+  onArchived: (c: Contact) => void;
 }) {
   const root = useRef<HTMLLIElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const fields = useRef<HTMLDivElement>(null);
-  // Height the row had in display mode, captured the instant before it expands,
-  // so the grow/collapse can animate between two real pixel heights.
   const collapsedH = useRef(0);
   const firstDim = useRef(true);
 
@@ -179,9 +229,6 @@ function ContactRow({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  // Grow + lift when this row enters edit mode. The collapse back is run
-  // imperatively from save/cancel so it can finish before React swaps the row
-  // back to its display form.
   useGSAP(
     () => {
       if (!isEditing) return;
@@ -213,11 +260,10 @@ function ContactRow({
     { dependencies: [isEditing], scope: root }
   );
 
-  // Recede the other rows while one is being edited.
   useGSAP(
     () => {
       if (firstDim.current) {
-        firstDim.current = false; // don't fight the entrance stagger on mount
+        firstDim.current = false;
         return;
       }
       gsap.to(root.current, {
@@ -232,7 +278,6 @@ function ContactRow({
   );
 
   function startEdit() {
-    // Capture the resting height, then reset the draft to the live values.
     collapsedH.current = inner.current?.offsetHeight ?? 0;
     setName(contact.name ?? "");
     setPhone(formatUsPhone(contact.phone));
@@ -283,8 +328,6 @@ function ContactRow({
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "No se pudo guardar.");
     } finally {
-      // The row stays mounted after a successful save (same key), so busy must
-      // be cleared here or the display-mode buttons stay frozen.
       setBusy(false);
     }
   }
@@ -294,23 +337,31 @@ function ContactRow({
     onCancel();
   }
 
-  async function del() {
+  // Archive (from Activos) or restore (from Archivados): the row swipes out of
+  // the current tab, then its archived_at flips so it lands in the other one.
+  async function toggleArchive() {
     setBusy(true);
     setError("");
+    let updated: Contact;
     try {
-      await api.deleteContact(contact.id);
+      updated = await api.archiveContact(contact.id, !archived);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "No se pudo eliminar.");
+      setError(
+        e instanceof ApiError
+          ? e.message
+          : archived
+            ? "No se pudo restaurar."
+            : "No se pudo archivar."
+      );
       setBusy(false);
       return;
     }
     if (reduceMotion() || !root.current) {
-      onDeleted(contact.id);
+      onArchived(updated);
       return;
     }
-    // Swipe out to the left, then close the gap it leaves behind.
     gsap
-      .timeline({ onComplete: () => onDeleted(contact.id) })
+      .timeline({ onComplete: () => onArchived(updated) })
       .to(root.current, {
         xPercent: -110,
         autoAlpha: 0,
@@ -396,23 +447,46 @@ function ContactRow({
                 </span>
               </div>
               <div className="flex shrink-0 items-center gap-2">
-                <RowButton
-                  tone="navy"
-                  onClick={startEdit}
-                  icon={<PencilSimple size={15} weight="bold" />}
-                >
-                  Editar
-                </RowButton>
-                <RowButton
-                  tone="red"
-                  onClick={del}
-                  disabled={busy}
-                  icon={
-                    busy ? <Spinner className="size-3.5" /> : <Trash size={15} weight="bold" />
-                  }
-                >
-                  Eliminar
-                </RowButton>
+                {archived ? (
+                  <RowButton
+                    tone="navy"
+                    onClick={toggleArchive}
+                    disabled={busy}
+                    icon={
+                      busy ? (
+                        <Spinner className="size-3.5" />
+                      ) : (
+                        <ArrowCounterClockwise size={15} weight="bold" />
+                      )
+                    }
+                  >
+                    Restaurar
+                  </RowButton>
+                ) : (
+                  <>
+                    <RowButton
+                      tone="navy"
+                      onClick={startEdit}
+                      icon={<PencilSimple size={15} weight="bold" />}
+                    >
+                      Editar
+                    </RowButton>
+                    <RowButton
+                      tone="red"
+                      onClick={toggleArchive}
+                      disabled={busy}
+                      icon={
+                        busy ? (
+                          <Spinner className="size-3.5" />
+                        ) : (
+                          <Archive size={15} weight="bold" />
+                        )
+                      }
+                    >
+                      Archivar
+                    </RowButton>
+                  </>
+                )}
               </div>
             </div>
             {error && (
@@ -425,7 +499,7 @@ function ContactRow({
   );
 }
 
-/** Per-row action pill: navy for edit, red for delete, white type on both. */
+/** Per-row action pill: navy for edit/restore, red for archive; white type. */
 function RowButton({
   tone,
   icon,

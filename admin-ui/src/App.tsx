@@ -21,15 +21,24 @@ export default function App() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [contactTotal, setContactTotal] = useState<number | null>(null);
 
+  // Load the audience on login, then refresh it silently each time the compose
+  // tab is shown — so a contact archived over in Contactos drops out of
+  // Mensajes masivos without a full reload.
+  const firstLoad = useRef(true);
   useEffect(() => {
     if (!authed) return;
-    setLoadingContacts(true);
+    if (!firstLoad.current && tab !== "compose") return;
+    const spin = firstLoad.current;
+    if (spin) setLoadingContacts(true);
     api
       .getContacts()
       .then(setContacts)
       .catch(() => setContacts([]))
-      .finally(() => setLoadingContacts(false));
-  }, [authed]);
+      .finally(() => {
+        if (spin) setLoadingContacts(false);
+        firstLoad.current = false;
+      });
+  }, [authed, tab]);
 
   if (!authed) return <Login onSuccess={() => setAuthed(true)} />;
 

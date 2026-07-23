@@ -3,8 +3,10 @@ export interface Contact {
   phone: string;
   name: string | null;
   // Present on the contact manager's list (GET /api/contacts/all). The audience
-  // picker's GET /api/contacts returns only opted-in contacts and omits it.
+  // picker's GET /api/contacts returns only active opted-in contacts and omits
+  // these.
   opted_in?: boolean;
+  archived_at?: string | null;
 }
 
 export type CampaignStatus =

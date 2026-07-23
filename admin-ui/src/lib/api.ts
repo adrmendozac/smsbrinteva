@@ -54,9 +54,12 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify(payload),
     }),
-  deleteContact: (id: number) =>
-    request<{ ok: boolean; id: number }>(`/api/contacts/${id}`, {
-      method: "DELETE",
+  // Soft archive / restore. Archived contacts drop out of the manager's Activos
+  // tab and the campaign audience picker, but the row and its send history stay.
+  archiveContact: (id: number, archived: boolean) =>
+    request<Contact>(`/api/contacts/${id}/archive`, {
+      method: "PATCH",
+      body: JSON.stringify({ archived }),
     }),
   suggest: (prompt: string) =>
     request<{ text: string }>("/api/suggest", {
