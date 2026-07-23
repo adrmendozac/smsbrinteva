@@ -373,41 +373,48 @@ function ContactRow({
             </div>
           </div>
         ) : (
-          <div className="flex items-center gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2">
-                <span className="truncate font-medium">
-                  {contact.name || (
-                    <span className="text-[var(--text-muted)]">Sin nombre</span>
-                  )}
-                </span>
-                {contact.opted_in === false && (
-                  <span className="shrink-0 rounded-full bg-[var(--surface-sunken)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-muted)]">
-                    sin consentimiento
+          <div>
+            <div className="flex items-center gap-3">
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-2">
+                  <span className="truncate font-medium">
+                    {contact.name || (
+                      <span className="text-[var(--text-muted)]">Sin nombre</span>
+                    )}
                   </span>
-                )}
+                  {contact.opted_in === false && (
+                    <span className="shrink-0 rounded-full bg-[var(--surface-sunken)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-muted)]">
+                      sin consentimiento
+                    </span>
+                  )}
+                </div>
+                <span className="mt-0.5 block font-mono text-sm text-[var(--text-muted)]">
+                  {formatUsPhone(contact.phone)}
+                </span>
               </div>
-              <span className="mt-0.5 block font-mono text-sm text-[var(--text-muted)]">
-                {formatUsPhone(contact.phone)}
-              </span>
+              <div className="flex shrink-0 items-center gap-2">
+                <RowButton
+                  tone="navy"
+                  onClick={startEdit}
+                  icon={<PencilSimple size={15} weight="bold" />}
+                >
+                  Editar
+                </RowButton>
+                <RowButton
+                  tone="red"
+                  onClick={del}
+                  disabled={busy}
+                  icon={
+                    busy ? <Spinner className="size-3.5" /> : <Trash size={15} weight="bold" />
+                  }
+                >
+                  Eliminar
+                </RowButton>
+              </div>
             </div>
-            <div className="flex shrink-0 items-center gap-2">
-              <RowButton
-                tone="navy"
-                onClick={startEdit}
-                icon={<PencilSimple size={15} weight="bold" />}
-              >
-                Editar
-              </RowButton>
-              <RowButton
-                tone="red"
-                onClick={del}
-                disabled={busy}
-                icon={<Trash size={15} weight="bold" />}
-              >
-                Eliminar
-              </RowButton>
-            </div>
+            {error && (
+              <p className="mt-2 text-xs text-[var(--status-failed)]">{error}</p>
+            )}
           </div>
         )}
       </div>
