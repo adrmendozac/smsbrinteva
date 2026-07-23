@@ -27,7 +27,7 @@ export function AudiencePicker({
   manualPhones: string[];
   onManualPhones: (phones: string[]) => void;
 }) {
-  const [source, setSource] = useState<Source>("contacts");
+  const [source, setSource] = useState<Source>("manual");
   const [query, setQuery] = useState("");
   const [csvName, setCsvName] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -74,9 +74,9 @@ export function AudiencePicker({
       >
         {(
           [
-            ["contacts", "Mensajes masivos", selectedIds.size],
             ["manual", "Individual", manualPhones.length],
-            ["csv", "CSV", csvPhones.length],
+            ["contacts", "Mensajes masivos", selectedIds.size],
+            ["csv", "Importar contactos", csvPhones.length],
           ] as const
         ).map(([key, label, count]) => (
           <button
