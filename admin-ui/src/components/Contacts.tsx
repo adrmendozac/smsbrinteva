@@ -31,6 +31,7 @@ export function Contacts({ onCount }: { onCount: (n: number | null) => void }) {
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [adding, setAdding] = useState(false);
   const [tab, setTab] = useState<SubTab>("active");
 
   useEffect(() => {
@@ -74,6 +75,15 @@ export function Contacts({ onCount }: { onCount: (n: number | null) => void }) {
     setContacts((prev) =>
       (prev ?? []).map((c) => (c.id === updated.id ? updated : c))
     );
+  }
+
+  // A freshly created contact lands at the top of Activos. Clear any search so
+  // the new row is visible instead of hidden behind a non-matching filter.
+  function addContact(created: Contact) {
+    setContacts((prev) => [created, ...(prev ?? [])]);
+    setAdding(false);
+    setQuery("");
+    setTab("active");
   }
 
   const listRef = useRef<HTMLUListElement>(null);
@@ -142,13 +152,27 @@ export function Contacts({ onCount }: { onCount: (n: number | null) => void }) {
             ))}
           </div>
 
-          {tab === "active" && (
-            <Button variant="brand" className="shrink-0 px-4 py-2">
+          {tab === "active" && !adding && (
+            <Button
+              variant="brand"
+              className="shrink-0 px-4 py-2"
+              onClick={() => {
+                setEditingId(null);
+                setAdding(true);
+              }}
+            >
               <Plus size={16} weight="bold" aria-hidden="true" />
               Agregar
             </Button>
           )}
         </div>
+
+        {adding && (
+          <AddContactForm
+            onAdded={addContact}
+            onCancel={() => setAdding(false)}
+          />
+        )}
 
         <div className="relative">
           <MagnifyingGlass
@@ -196,6 +220,108 @@ export function Contacts({ onCount }: { onCount: (n: number | null) => void }) {
         </ul>
       )}
     </Card>
+  );
+}
+
+/**
+ * Inline "new contact" form dropped in under the header when the user hits
+ * Agregar. Mirrors the edit row — same inputs, same brand Guardar — so adding
+ * and editing feel like one gesture. New contacts are asserted opted-in server
+ * side, matching the contact-manager consent model.
+ */
+function AddContactForm({
+  onAdded,
+  onCancel,
+}: {
+  onAdded: (c: Contact) => void;
+  onCancel: () => void;
+}) {
+  const root = useRef<HTMLDivElement>(null);
+  const [name, setName] = useState("");
+  const [phone, setPhone] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+
+  useGSAP(
+    () => {
+      if (reduceMotion()) return;
+      gsap.from(root.current, {
+        autoAlpha: 0,
+        y: -8,
+        duration: 0.35,
+        ease: "mass",
+      });
+    },
+    { scope: root }
+  );
+
+  async function submit() {
+    const normalized = normalizeUsPhone(phone);
+    if (!normalized) {
+      setError("Escribe un número de EE. UU. de 10 dígitos (con o sin el 1).");
+      return;
+    }
+    setBusy(true);
+    setError("");
+    try {
+      const created = await api.createContact({
+        name: name.trim(),
+        phone: normalized,
+      });
+      // onAdded unmounts this form, so no need to reset busy on success.
+      onAdded(created);
+    } catch (e) {
+      setError(e instanceof ApiError ? e.message : "No se pudo agregar.");
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div
+      ref={root}
+      className="space-y-2.5 rounded-2xl bg-[var(--surface-sunken)] p-3"
+    >
+      <input
+        autoFocus
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+        placeholder="Nombre"
+        className={inputClass}
+      />
+      <input
+        value={phone}
+        inputMode="tel"
+        onChange={(e) => {
+          setPhone(e.target.value);
+          if (error) setError("");
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") submit();
+        }}
+        placeholder="Teléfono"
+        className={cn(inputClass, "font-mono")}
+      />
+      {error && <p className="text-xs text-[var(--status-failed)]">{error}</p>}
+      <div className="flex items-center justify-end gap-2 pt-0.5">
+        <button
+          type="button"
+          onClick={onCancel}
+          disabled={busy}
+          className="rounded-full px-3 py-1.5 text-xs font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)] disabled:opacity-50"
+        >
+          Cancelar
+        </button>
+        <button
+          type="button"
+          onClick={submit}
+          disabled={busy}
+          className="inline-flex items-center gap-1.5 rounded-full bg-[var(--brand)] px-4 py-1.5 text-xs font-medium text-white outline-none transition-[filter,transform] duration-200 ease-[var(--ease-mass)] hover:brightness-110 focus-visible:ring-2 focus-visible:ring-[var(--focus)] active:scale-[0.96] disabled:opacity-60"
+        >
+          {busy && <Spinner className="size-3.5" />}
+          Agregar
+        </button>
+      </div>
+    </div>
   );
 }
 
