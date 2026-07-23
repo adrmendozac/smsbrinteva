@@ -53,7 +53,11 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-full">
+    // overflow-x-clip is a page-level guard against any child forcing the
+    // viewport wider (which shows up as a must-zoom-out horizontal scroll). clip
+    // — unlike hidden — does not create a scroll container, so the sticky header
+    // and sticky rail keep working.
+    <div className="min-h-full overflow-x-clip">
       <Header tab={tab} onTab={setTab} onLogout={logout} />
 
       <main className="mx-auto max-w-6xl px-4 pt-12 pb-24 sm:pt-16">
@@ -65,7 +69,10 @@ export default function App() {
             contactTotal={contactTotal}
           />
 
-          <div className="md:col-span-7 lg:col-span-8">
+          {/* min-w-0: grid items default to min-width:auto and refuse to shrink
+              below their content's intrinsic width, which is what let the
+              Contactos card push the page wider. */}
+          <div className="min-w-0 md:col-span-7 lg:col-span-8">
             {tab === "compose" ? (
               loadingContacts ? (
                 <div className="flex justify-center py-16 text-[var(--text-muted)]">
@@ -139,7 +146,7 @@ function Rail({
     // left-aligned from md: up, where it becomes a true editorial column.
     <div
       ref={root}
-      className="text-center md:col-span-5 md:sticky md:top-28 md:self-start md:text-left lg:col-span-4"
+      className="min-w-0 text-center md:col-span-5 md:sticky md:top-28 md:self-start md:text-left lg:col-span-4"
     >
       <Eyebrow>{copy.eyebrow}</Eyebrow>
 

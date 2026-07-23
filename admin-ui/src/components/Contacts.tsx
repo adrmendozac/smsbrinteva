@@ -111,7 +111,7 @@ export function Contacts({ onCount }: { onCount: (n: number | null) => void }) {
   return (
     <Card padded={false}>
       <div className="space-y-3 p-4">
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
           {/* Sub-tabs live inside Contactos, the same way Historial splits
               active from archived — a view of this screen, not a nav change. */}
           <div

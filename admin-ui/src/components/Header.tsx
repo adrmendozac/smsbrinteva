@@ -70,14 +70,15 @@ export function Header({
 
   return (
     <div className="sticky top-0 z-30 px-4 pt-6 pb-2">
+      <div className="relative mx-auto w-max max-w-full">
       <header
-        className="mx-auto flex w-max max-w-full items-center gap-1 rounded-full bg-white/70 p-2 backdrop-blur-2xl sm:gap-2"
+        className="flex w-max max-w-full items-center gap-1 rounded-full bg-white/70 p-2 backdrop-blur-2xl sm:gap-2"
         style={{ boxShadow: `0 0 0 1px var(--hairline), var(--shadow-lifted)` }}
       >
         <div className="flex items-center gap-2 pl-2 pr-1">
           <img src={logo} alt="" width={28} height={28} className="size-7 shrink-0" />
           <span
-            className="hidden text-sm font-semibold tracking-tight md:inline"
+            className="text-sm font-semibold tracking-tight"
             translate="no"
           >
             Brinteva <span className="text-[var(--brand)]">Worlds</span>
@@ -124,7 +125,7 @@ export function Header({
         <div
           id="mobile-menu"
           ref={panel}
-          className="mx-auto mt-2 flex w-64 max-w-full flex-col gap-1 rounded-3xl bg-white/80 p-2 backdrop-blur-2xl md:hidden"
+          className="absolute left-1/2 top-full z-10 mt-2 flex w-64 max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-col gap-1 rounded-3xl bg-white/80 p-2 backdrop-blur-2xl md:hidden"
           style={{ boxShadow: `0 0 0 1px var(--hairline), var(--shadow-lifted)` }}
         >
           {TABS.map(({ key, label, icon: Icon }) => (
@@ -155,6 +156,7 @@ export function Header({
           </button>
         </div>
       )}
+      </div>
     </div>
   );
 }
