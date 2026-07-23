@@ -16,6 +16,10 @@ import "@fontsource-variable/geist";
 import "@fontsource-variable/geist-mono";
 import "./index.css";
 import App from "./App.tsx";
+import { preventInputZoom } from "./lib/preventInputZoom";
+
+// Stop iOS Safari from zooming the page in when a form field is focused.
+preventInputZoom();
 
 createRoot(document.getElementById("root")!).render(
   <StrictMode>
