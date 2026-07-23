@@ -282,6 +282,9 @@ function ContactRow({
       onSaved(updated);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "No se pudo guardar.");
+    } finally {
+      // The row stays mounted after a successful save (same key), so busy must
+      // be cleared here or the display-mode buttons stay frozen.
       setBusy(false);
     }
   }
