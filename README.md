@@ -1,6 +1,13 @@
-# Brinteva SMS Automation — `sms.brintevaworlds.com`
+# Brinteva SMS — `sms.brintevaworlds.com`
 
-Sistema de automatización de SMS con IA para Brinteva Worlds, Inc. Incluye respuestas automáticas con Claude Haiku, bandeja de entrada compartida para agentes, y envíos masivos programados.
+Plataforma de SMS para Brinteva Worlds, Inc.: lanzador de campañas masivas con
+redacción asistida por IA, cumplimiento 10DLC (opt-out en español e inglés), y
+puente bidireccional hacia Kommo CRM, donde los vendedores atienden las
+conversaciones.
+
+> **Sin secretos en este repositorio.** Credenciales, IPs, llaves y números de
+> cuenta viven en `.env` y en el VPS. Este README documenta *nombres* de
+> variables y procedimientos, nunca sus valores.
 
 ---
 
@@ -8,240 +15,254 @@ Sistema de automatización de SMS con IA para Brinteva Worlds, Inc. Incluye resp
 
 | Capa | Tecnología |
 |---|---|
-| Servidor | Ubuntu 24.04 VPS (GoDaddy, IP `72.167.54.34`) |
-| Runtime | Node.js 20 + PM2 |
-| Web server | Nginx + Let's Encrypt (Certbot) |
+| Servidor | Ubuntu 24.04 VPS (GoDaddy) |
+| Runtime | Node.js 20 + PM2 (proceso `sms-bot`) |
+| Web server | Nginx + Let's Encrypt, proxy a `127.0.0.1:3001` |
 | Base de datos | MySQL 8.4 (`brinteva_sms`) |
-| Cache / Real-time | Redis (puerto `6379`) |
 | IA | Anthropic Claude Haiku (`claude-haiku-4-5-20251001`) |
-| SMS API | Vonage Communications API (Nexmo) |
-| Frontend (inbox) | React + Tailwind (via CDN) + Socket.io |
+| SMS / Voz | Vonage **Messages API** (JWT RS256) + NCCO |
+| CRM | Kommo Chats API (canal externo) |
+| Admin UI | React + Vite + Tailwind, build estático en `public/admin/` |
 
 ---
 
-## Estructura de directorios
+## Estructura
 
 ```
-/var/www/sms.brintevaworlds.com/
-├── index.js              # Servidor Express principal (webhook handler + API routes)
-├── .env                  # Variables de entorno (NO commitear)
-├── .gitignore
-├── private.key           # Vonage private key para JWT auth (NO commitear)
-├── package.json
-├── package-lock.json
-├── node_modules/
-└── public/               # Frontend React (build estático, servido por Nginx)
-    └── inbox/
-        └── index.html
+.
+├── index.js              # Express: webhooks, auth, opt-in, páginas 10DLC
+├── lib/
+│   ├── vonage.js         #  Messages API + JWT
+│   ├── sms.js            #  sanitizeForSMS (GSM-7), segmentación
+│   ├── campaigns.js      #  CRUD de campañas + resolución de audiencia
+│   ├── sendEngine.js     #  motor de envío con throttling
+│   ├── scheduler.js      #  node-cron para campañas programadas
+│   ├── contacts.js       #  gestor de contactos (alta/edición/archivo)
+│   ├── kommo.js          #  puente Kommo (firma X-Signature)
+│   └── voice.js          #  NCCO: llamadas entrantes → grupo VBC
+├── migrations/           # .sql fechados, aplicados con scripts/apply-migration.js
+├── scripts/
+│   ├── apply-migration.js
+│   └── dlr.js            #  consulta acuses de entrega (Reports API)
+├── admin-ui/             # fuente del panel (React); se compila a public/admin/
+├── public/               # estáticos servidos por Express
+│   ├── admin/            #  build del panel — SÍ se commitea
+│   ├── privacy.html
+│   └── sms-terms.html
+└── docs/superpowers/     # specs y planes de implementación
 ```
+
+`inbox-ui/` es una bandeja de entrada propia que quedó **descontinuada**: Kommo
+la reemplazó como interfaz de los vendedores. Se conserva solo como referencia.
 
 ---
 
-## Variables de entorno (`.env`)
+## Variables de entorno (`.env`, nunca commiteado)
 
 ```env
-PORT=3001
+PORT
 
-# Vonage Communications API
-VONAGE_API_KEY=e1e31164
-VONAGE_API_SECRET=
-VONAGE_APPLICATION_ID=
-VONAGE_PRIVATE_KEY_PATH=./private.key
-VONAGE_SIGNATURE_SECRET=
-VONAGE_NUMBER=
+# Vonage — Messages API (JWT)
+VONAGE_APPLICATION_ID
+VONAGE_PRIVATE_KEY_PATH
+VONAGE_NUMBER
+VONAGE_API_KEY          # solo para scripts/dlr.js (Reports API)
+VONAGE_API_SECRET       # idem
 
 # Anthropic
-ANTHROPIC_API_KEY=
+ANTHROPIC_API_KEY
 
 # MySQL
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_NAME=brinteva_sms
-DB_USER=brinteva_user
-DB_PASSWORD=
+DB_HOST  DB_PORT  DB_NAME  DB_USER  DB_PASSWORD
 
-# Auth (inbox)
-JWT_SECRET=
-SESSION_SECRET=
+# Auth del panel
+JWT_SECRET
+INBOX_PIN
+
+# Envío
+SEND_RATE_PER_SEC       # throttling del motor de envío
+DRY_RUN                 # 1 = no llama a Vonage, simula message ids
+AI_AUTOREPLY            # 1 = respuesta automática; 0 = contestan los vendedores
+
+# Kommo
+KOMMO_ENABLED  KOMMO_SCOPE_ID  KOMMO_CHANNEL_SECRET  KOMMO_BOT_ID
+KOMMO_MIRROR_AI  KOMMO_ENFORCE_SIGNATURE
+
+# Voz
+VOICE_CONNECT  VOICE_EVENT_URL  VOICE_GREETING
+VOICE_RING_TIMEOUT  VOICE_FALLBACK_NUMBER
 ```
 
 ---
 
-## Base de datos — `brinteva_sms`
-
-### Tablas
+## Base de datos
 
 | Tabla | Descripción |
 |---|---|
-| `contacts` | Números de clientes, idioma detectado, estado de opt-in/out |
-| `conversations` | Hilos por contacto; estados: `ai_handling`, `needs_human`, `open`, `resolved` |
-| `messages` | Mensajes individuales inbound/outbound, dirección, remitente (ai/human/system) |
-| `broadcasts` | Campañas de envío masivo; estados: draft, scheduled, sending, completed, failed |
-| `broadcast_recipients` | Estado individual de envío por contacto por campaña |
-| `users` | Agentes con acceso a la bandeja de entrada *(pendiente)* |
+| `contacts` | Números, nombre, `opted_in`, `opted_out_at`, `archived_at` |
+| `conversations` | Hilos por contacto: `ai_handling`, `needs_human`, `resolved` |
+| `messages` | Mensajes 1-a-1 (inbound/outbound), estado de entrega, `sent_by` |
+| `broadcasts` | Campañas: `draft`, `scheduled`, `sending`, `completed`, `failed` |
+| `broadcast_recipients` | Estado por destinatario: `pending`, `sent`, `delivered`, `failed`, `opted_out` |
+| `promotions` | Catálogo que se inyecta al prompt de la IA |
+| `consent_records` | Evidencia de consentimiento del formulario web (10DLC) |
 
-### Acceso
+No hay tabla `users`: el panel se protege con un PIN compartido que emite un JWT.
+
+Los contactos y las campañas se **archivan**, nunca se borran (`archived_at`):
+las filas de `broadcast_recipients` son la evidencia de qué se envió a quién.
+
+### Migraciones
+
+Cada cambio de esquema es un `.sql` fechado en `migrations/`, aplicado con:
 
 ```bash
-sudo mysql
-USE brinteva_sms;
-SHOW TABLES;
+node scripts/apply-migration.js migrations/2026-07-23-contacts-archived-at.sql
 ```
+
+El runner lee las credenciales vía `dotenv`, así que no expone secretos en el
+historial del shell, y es idempotente ante "la columna ya existe".
 
 ---
 
-## PM2
+## Endpoints
 
-| Proceso | ID | Puerto | Directorio |
-|---|---|---|---|
-| `sms-bot` | 0 | 3001 | `/var/www/sms.brintevaworlds.com` |
-
-```bash
-pm2 list                    # ver procesos
-pm2 restart sms-bot         # reiniciar
-pm2 logs sms-bot            # ver logs en vivo
-pm2 flush sms-bot           # limpiar logs
-pm2 save                    # guardar estado actual
-```
-
----
-
-## Nginx
-
-Archivo de configuración: `/etc/nginx/sites-available/sms.brintevaworlds.com`
-
-- Puerto 80 → redirige a HTTPS
-- Puerto 443 → proxy a `127.0.0.1:3001`
-- SSL: `/etc/letsencrypt/live/sms.brintevaworlds.com/`
-
-```bash
-sudo nginx -t                        # validar config
-sudo systemctl reload nginx          # aplicar cambios
-sudo certbot renew --dry-run         # probar renovación SSL
-```
-
----
-
-## Endpoints (Webhook)
+### Públicos / webhooks
 
 | Método | Ruta | Descripción |
 |---|---|---|
-| `GET` | `/` | Health check — devuelve `SMS Bot is running` |
-| `POST` | `/inbound` | Recibe SMS entrantes de Vonage |
-| `POST` | `/status` | Recibe actualizaciones de entrega de Vonage |
-| `GET` | `/inbox` | Bandeja de entrada para agentes *(pendiente)* |
-| `POST` | `/api/reply` | Enviar respuesta manual desde inbox *(pendiente)* |
-| `POST` | `/api/resolve` | Marcar conversación como resuelta *(pendiente)* |
-| `GET` | `/api/conversations` | Lista de conversaciones *(pendiente)* |
-| `GET` | `/api/messages/:id` | Mensajes de un hilo *(pendiente)* |
+| `GET` | `/` · `/health` | Health check |
+| `GET` | `/privacy` · `/sms-terms` · `/consent-script` | Páginas y script de consentimiento 10DLC |
+| `POST` | `/api/opt-in` | Alta desde el formulario web; graba en `consent_records` |
+| `POST` | `/inbound` | SMS entrante (Vonage) |
+| `POST` | `/status` | Acuses de entrega (Vonage) |
+| `POST` | `/voice/events` | Eventos de llamada (Vonage) |
+| `POST` | `/kommo/webhook/:scope_id` | Respuestas de vendedores desde Kommo |
 
-**URLs para configurar en Vonage Dashboard (Application):**
-- Inbound: `https://sms.brintevaworlds.com/inbound`
-- Status: `https://sms.brintevaworlds.com/status`
+### Panel (requieren `Authorization: Bearer <jwt>`)
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| `POST` | `/api/login` | PIN → JWT (12 h) |
+| `GET` | `/api/contacts` | Contactos activos y opted-in (selector de audiencia) |
+| `GET` | `/api/contacts/all` | Todos, incluidos archivados y opted-out |
+| `POST` · `PATCH` | `/api/contacts` · `/api/contacts/:id` | Alta y edición |
+| `PATCH` | `/api/contacts/:id/archive` | Archivar / restaurar |
+| `POST` | `/api/suggest` | Borrador del mensaje con Claude Haiku |
+| `GET` · `POST` | `/api/campaigns` | Historial y creación |
+| `GET` | `/api/campaigns/:id` | Detalle + estado por destinatario |
+| `POST` | `/api/campaigns/:id/send` | Enviar ya (motor asíncrono) |
+| `PATCH` | `/api/campaigns/:id/archive` | Archivar / restaurar |
+| `GET` | `/admin/*` | Panel React (SPA) |
+
+URLs a configurar en el dashboard de Vonage: `/inbound`, `/status`,
+`/voice/events`.
 
 ---
 
-## Lógica del webhook inbound (`/inbound`)
+## Flujo de un SMS entrante
 
 ```
-Mensaje entrante
-  ↓
-1. Upsert contacto en `contacts`
-2. Obtener o crear conversación abierta
-3. Guardar mensaje en `messages`
-4. ¿Es STOP/UNSUBSCRIBE? → opt-out + respuesta + resolver
-5. ¿Es START? → opt-in + respuesta
-6. ¿Conversación en `needs_human`? → skip AI, esperar agente
-7. Llamar a Claude Haiku (bilingüe, <160 caracteres)
-8. ¿Respuesta contiene [NEEDS_HUMAN]? → escalar conversación
-9. Enviar respuesta via Vonage SMS API
-10. Guardar mensaje outbound en `messages`
+1. Upsert del contacto y de la conversación abierta
+2. Guardar el mensaje entrante
+3. ¿HELP / INFO / SOPORTE?  → copia de ayuda registrada  (antes del opt-out,
+                               responde incluso a quien ya se dio de baja)
+4. ¿Palabra de baja?        → opted_in = FALSE, conversación resuelta
+5. ¿Palabra de alta?        → opted_in = TRUE
+6. Espejo hacia Kommo       → el vendedor ve y responde el hilo
+7. AI_AUTOREPLY = 1         → Claude Haiku responde; [NEEDS_HUMAN] escala
 ```
 
----
+Hoy `AI_AUTOREPLY` está **apagado**: contestan los vendedores desde Kommo. La
+IA se usa solo para redactar campañas. La lógica del auto-responder se conserva
+intacta para poder reactivarla.
 
-## Vonage — Estado actual
+### Cumplimiento 10DLC
 
-| Item | Estado |
-|---|---|
-| Cuenta API (Nexmo) | ✅ Creada — API key `e1e31164` |
-| Fondos | ✅ Cargados (recibo No. 580335) |
-| Acceso a cuenta | ⏳ En revisión por Vonage (ticket enviado a Rodolfo) |
-| Brand 10DLC — VBC | ✅ Aprobada: `BHDQXLV` (Brinteva Worlds Inc., abril 2024) |
-| Brand 10DLC — API | ⏳ Pendiente (registrar en API dashboard una vez desbloqueado) |
-| Campaña 10DLC | ⏳ Pendiente |
-| Número virtual (LVN) | ⏳ Pendiente |
-| Application ID + Private Key | ⏳ Pendiente |
+Palabras clave reconocidas tras normalizar mayúsculas, puntuación y acentos:
 
----
+- **Baja** — `stop`, `unsubscribe`, `cancel`, `quit`, `end`, `alto`, `pare`,
+  `parar`, `detener`, `cancelar`, `fin`, `basta`, `eliminar`, `quitar`
+- **Alta** — `start`, `alta`, `empezar`, `iniciar`, `comenzar`, `suscribir`,
+  `suscribirme`
+- **Ayuda** — `help`, `info`, `soporte`
 
-## Pendientes de desarrollo
+`sí` y `yes` quedan **fuera** de la lista de alta a propósito: son respuestas
+conversacionales normales y resuscribirían a gente que no lo pidió. Los textos
+de confirmación se envían en inglés porque esa es la copia registrada ante los
+operadores.
 
-- [ ] Tabla `users` en MySQL con roles (admin / agente)
-- [ ] Sistema de login con JWT y sesiones
-- [ ] Frontend React — bandeja de entrada (`/inbox`)
-  - Lista de conversaciones (estado, último mensaje, asignado a)
-  - Hilo de mensajes por contacto
-  - Caja de respuesta manual
-  - Botón de escalar / resolver
-  - Indicador de "agente está respondiendo" (Socket.io)
-  - Notificaciones en tiempo real de mensajes nuevos
-- [ ] Actualizar Vonage de SMS API legacy → Messages API con JWT auth
-- [ ] Módulo de envío masivo (`/broadcasts`)
-  - UI para redactar campaña
-  - Carga de lista de contactos (CSV)
-  - Programación de envío (node-cron)
-  - Rate limiting y batching (evitar filtros de spam)
-  - Reporte de entrega en tiempo real
-- [ ] Integración Claude para personalización de mensajes masivos
-- [ ] WhatsApp via Vonage Messages API (misma infraestructura)
+> **El opt-out tiene dos capas independientes.** `contacts.opted_in` decide qué
+> *intentamos* enviar; el operador móvil mantiene su propio bloqueo que solo se
+> levanta cuando el teléfono envía START. Reactivar a alguien desde el panel
+> arregla nuestro lado únicamente: los envíos parecerán exitosos y no llegarán.
+> Si alguien se dio de baja, tiene que escribir START desde su teléfono.
 
 ---
 
-## Historial de cambios
+## Envío de campañas
 
-| Fecha | Cambio |
-|---|---|
-| Jun 2026 | Setup inicial: VPS, Nginx, SSL, PM2, Express |
-| Jun 2026 | Webhook inbound + Claude Haiku AI responder |
-| Jun 2026 | Base de datos MySQL — 5 tablas |
-| Jun 2026 | Eliminación de `fb-bot` (Facebook bot deprecado) |
-| Jun 2026 | Seguridad: app bindeada a `127.0.0.1` (no expuesta directamente) |
+`resolveRecipients` filtra por `opted_in = TRUE AND archived_at IS NULL`, y el
+motor **vuelve a verificar** el opt-in de cada destinatario justo antes de
+enviar (si cambió, la fila queda como `opted_out`). Los envíos se espacian según
+`SEND_RATE_PER_SEC`, un fallo individual no aborta la campaña, y el error de
+Vonage se guarda por destinatario.
+
+Las campañas se reflejan en Kommo al enviarse, pero **no** se escriben en
+`messages`, así que no aparecen dentro del hilo de conversación.
+
+Con `DRY_RUN=1` el motor recorre todo el camino real —base de datos, throttling,
+conteos— sin llamar a Vonage.
 
 ---
 
-## Comandos rápidos de referencia
+## Despliegue
 
 ```bash
-# Ver estado general
-pm2 list && ss -tlnp | grep 3001
-
-# Reiniciar app después de cambios en index.js
-pm2 restart sms-bot && pm2 logs sms-bot --lines 20
-
-# Verificar SSL y health del stack completo
-curl https://sms.brintevaworlds.com/
-
-# Acceder a MySQL
-sudo mysql -e "USE brinteva_sms; SHOW TABLES;"
-
-# Ver logs de Nginx
-sudo tail -f /var/log/nginx/error.log
-
-# Renovar SSL manualmente si hace falta
-sudo certbot renew
+git push production main
 ```
 
+El hook `post-receive` del repositorio bare en el VPS hace checkout, corre
+`npm install` y reinicia PM2. `origin` es GitHub; `production` es el VPS.
+
+```bash
+pm2 list                     # estado
+pm2 logs sms-bot --lines 50  # logs en vivo
+pm2 restart sms-bot          # reinicio manual
+
+sudo nginx -t && sudo systemctl reload nginx
+curl -s -o /dev/null -w '%{http_code}\n' https://sms.brintevaworlds.com/
+```
+
+### Panel de administración
+
+```bash
+cd admin-ui && npm install && npm run build   # compila a ../public/admin/
+python3 devserve.py                           # servidor local de depuración
+```
+
+El build de `public/admin/` **se commitea** a propósito: el VPS no compila.
+
 ---
 
-## Contactos del proyecto
+## Verificación
 
-| Rol | Nombre | Contacto |
-|---|---|---|
-| Owner / Dev | Adrian Mendoza | `munditravels10@hotmail.com` |
-| Vonage Support | Rodolfo | Ticket abierto — cuenta `e1e31164` |
-| VBC Super User | Bridget Ruiz | `nicoll.brintevaworlds...` |
+Este proyecto no usa suites con mocks. Los cambios se verifican con `curl`
+real contra la base de datos real, primero con `DRY_RUN=1` y después con un
+envío a un número propio. `scripts/dlr.js` consulta los acuses de entrega
+cuando hay dudas sobre si un mensaje llegó al operador.
 
 ---
 
-*Brinteva Worlds, Inc. — EIN 92-3293741 — Pittsburg, CA*
+## Pendientes
+
+- [ ] Soporte de imágenes (MMS) en campañas
+- [ ] Agregar `unstop` a las palabras de alta
+- [ ] Mostrar `opted_out_at` en el panel
+- [ ] Normalizar números de 10 dígitos al importar CSV
+- [ ] Procesar MMS entrantes (hoy se descartan)
+- [ ] Endurecer el firewall del VPS y limitar MySQL a `127.0.0.1`
+
+---
+
+*Brinteva Worlds, Inc.*
