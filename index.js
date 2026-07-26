@@ -314,6 +314,63 @@ kommo.registerKommoRoutes(app, { env: process.env }, async (payload) => {
 
 // ── Inbound SMS handler ────────────────────────────────────────────────────
 
+// STOP/START/HELP keywords, English (the registered 10DLC set) plus Spanish.
+// We message a Spanish-speaking audience, so an opt-out has to be honored in
+// the language we wrote in — "ALTO" left a contact opted_in until now.
+//
+// Matching stays whole-string: `keyword()` folds case, accents, and trailing
+// punctuation, so "Alto!" and "ALTO" are one entry. Anything wordier than a bare
+// keyword ("ya no me manden mensajes") still falls through to a seller in Kommo
+// rather than being guessed at here.
+//
+// Deliberately absent: "si" and "no". Both are ordinary answers to a seller's
+// question, and either one would silently flip consent for a contact who was
+// just holding a conversation.
+const OPT_OUT_KEYWORDS = new Set([
+  'stop', 'unsubscribe', 'cancel', 'quit', 'end',
+  'alto', 'pare', 'parar', 'detener', 'cancelar', 'fin',
+  'basta', 'eliminar', 'quitar'
+]);
+
+const OPT_IN_KEYWORDS = new Set([
+  'start',
+  'alta', 'empezar', 'iniciar', 'comenzar', 'suscribir', 'suscribirme'
+]);
+
+const HELP_KEYWORDS = new Set([
+  'help', 'info',
+  'soporte'
+]);
+
+// Spanish keywords get a Spanish confirmation; the English keywords keep the
+// exact copy registered with the carrier under 10DLC, untouched.
+const SPANISH_REPLIES = {
+  optOut: 'Brinteva Worlds: Tu suscripcion fue cancelada y no recibiras mas mensajes. Responde START para suscribirte de nuevo.',
+  optIn: 'Brinteva Worlds: Te suscribiste para recibir mensajes promocionales recurrentes. La frecuencia varia. Pueden aplicar tarifas de mensajes y datos. Responde STOP para cancelar, HELP para ayuda.',
+  help: 'Brinteva Worlds: Para ayuda, escribenos a nicoll@brintevaworlds.com o llama al +1 (925) 262-8150. Pueden aplicar tarifas de mensajes y datos. Responde STOP para cancelar.'
+};
+
+// Fold an inbound message to a bare comparison key: trimmed, accent-stripped,
+// lowercased, with trailing punctuation dropped so "STOP." and "STOP!" count.
+// Returns '' for anything that isn't a single word.
+function keyword(text) {
+  const bare = String(text || '')
+    .normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/[.!¡?¿,;:]+/g, '')
+    .trim()
+    .toLowerCase();
+  return /^[a-z]+$/.test(bare) ? bare : '';
+}
+
+// The exact keyword set registered with the carrier for campaign VCBCFN4Y.
+// A hit here answers in the registered English copy; every other keyword is one
+// we added for Spanish speakers and answers in Spanish. Kept as one list rather
+// than per-branch arrays so adding an English keyword can't drift out of sync
+// and start returning a Spanish reply.
+const REGISTERED_EN = new Set([
+  'stop', 'unsubscribe', 'cancel', 'quit', 'end', 'start', 'help', 'info'
+]);
+
 app.post('/inbound', async (req, res) => {
   const { from: msisdn, text, message_uuid: messageId } = req.body;
   console.log(`Inbound SMS from ${msisdn}: ${text}`);
@@ -364,7 +421,10 @@ app.post('/inbound', async (req, res) => {
     );
     const inboundMsgId = inboundMsg.insertId;
 
-    if (/^(stop|unsubscribe|cancel|quit|end)$/i.test(text.trim())) {
+    const kw = keyword(text);
+    const registered = REGISTERED_EN.has(kw);
+
+    if (OPT_OUT_KEYWORDS.has(kw)) {
       await db.execute(
         `UPDATE contacts SET opted_in = FALSE, opted_out_at = NOW() WHERE id = ?`,
         [contactId]
@@ -373,23 +433,29 @@ app.post('/inbound', async (req, res) => {
         `UPDATE conversations SET status = 'resolved' WHERE id = ?`,
         [conversationId]
       );
-      await sendSMS(msisdn, 'Brinteva Worlds: You have been successfully unsubscribed and will no longer receive messages. Reply START to resubscribe.', conversationId, 'system');
+      await sendSMS(msisdn, registered
+        ? 'Brinteva Worlds: You have been successfully unsubscribed and will no longer receive messages. Reply START to resubscribe.'
+        : SPANISH_REPLIES.optOut, conversationId, 'system');
       return;
     }
 
-    if (/^start$/i.test(text.trim())) {
+    if (OPT_IN_KEYWORDS.has(kw)) {
       await db.execute(
         `UPDATE contacts SET opted_in = TRUE, opted_out_at = NULL WHERE id = ?`,
         [contactId]
       );
-      await sendSMS(msisdn, 'Brinteva Worlds: You have subscribed to receive recurring promotional messages. Message frequency varies. Message and data rates may apply. Reply STOP to cancel, HELP for help.', conversationId, 'system');
+      await sendSMS(msisdn, registered
+        ? 'Brinteva Worlds: You have subscribed to receive recurring promotional messages. Message frequency varies. Message and data rates may apply. Reply STOP to cancel, HELP for help.'
+        : SPANISH_REPLIES.optIn, conversationId, 'system');
       return;
     }
 
     // HELP auto-responder (registered 10DLC help keyword; must always reply,
     // even for opted-out contacts, so it runs before any AI/Kommo handling).
-    if (/^(help|info)$/i.test(text.trim())) {
-      await sendSMS(msisdn, 'Brinteva Worlds: For help, email us at nicoll@brintevaworlds.com or call +1 (925) 262-8150. Message and data rates may apply. Reply STOP to cancel.', conversationId, 'system');
+    if (HELP_KEYWORDS.has(kw)) {
+      await sendSMS(msisdn, registered
+        ? 'Brinteva Worlds: For help, email us at nicoll@brintevaworlds.com or call +1 (925) 262-8150. Message and data rates may apply. Reply STOP to cancel.'
+        : SPANISH_REPLIES.help, conversationId, 'system');
       return;
     }
 
