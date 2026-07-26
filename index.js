@@ -7,6 +7,7 @@ const jwt = require('jsonwebtoken');
 const { sanitizeForSMS } = require('./lib/sms');
 const { registerCampaignRoutes } = require('./lib/campaigns');
 const { registerContactRoutes } = require('./lib/contacts');
+const { registerMediaRoutes } = require('./lib/media');
 const { startScheduler } = require('./lib/scheduler');
 const kommo = require('./lib/kommo');
 const { sendMessage } = require('./lib/vonage');
@@ -176,6 +177,7 @@ const deps = {
 };
 registerCampaignRoutes(app, deps, requireAuth);
 registerContactRoutes(app, deps, requireAuth);
+registerMediaRoutes(app, deps, requireAuth);
 startScheduler(deps);
 
 // ── Inbound voice ──────────────────────────────────────────────────────────
@@ -215,12 +217,12 @@ async function mirrorInboundToKommo({ phone, name, text, msgid }) {
 // campaign blasts are mirrored on their own merits.
 // Resolves to the amojo-side message id, which is the only id the
 // delivery_status endpoint accepts (our own ref_id 404s there).
-async function mirrorOutboundToKommo({ phone, text, msgid, senderName, force = false }) {
+async function mirrorOutboundToKommo({ phone, text, mediaUrl = null, msgid, senderName, force = false }) {
   if (!KOMMO.enabled || (!force && !KOMMO.mirrorAi) || !KOMMO.scopeId || !KOMMO.secret || !KOMMO.botId) return null;
   try {
     const res = await kommo.importMessage({
       axios, scopeId: KOMMO.scopeId, secret: KOMMO.secret,
-      payload: kommo.outboundPayload({ phone, text, msgid, senderName, botRefId: KOMMO.botId })
+      payload: kommo.outboundPayload({ phone, text, mediaUrl, msgid, senderName, botRefId: KOMMO.botId })
     });
     if (res.status >= 300) {
       console.error('[kommo] outbound import failed', res.status, JSON.stringify(res.data));
@@ -236,8 +238,8 @@ async function mirrorOutboundToKommo({ phone, text, msgid, senderName, force = f
 // Campaign blasts are mirrored into Kommo as they send, so a seller opening the
 // chat sees what the customer was sent before any reply arrives. Attached to the
 // existing deps object (defined above, read at call time by lib/sendEngine.js).
-deps.mirrorCampaignToKommo = ({ phone, text, msgid }) =>
-  mirrorOutboundToKommo({ phone, text, msgid, senderName: 'Brinteva Worlds', force: true });
+deps.mirrorCampaignToKommo = ({ phone, text, mediaUrl, msgid }) =>
+  mirrorOutboundToKommo({ phone, text, mediaUrl, msgid, senderName: 'Brinteva Worlds', force: true });
 
 // Report delivery progress of an agent reply back to Kommo (amojo enum:
 // -1 error, 0 sent, 1 delivered, 2 read).

@@ -1,13 +1,27 @@
-import { useMemo, useState } from "react";
-import { Sparkle, PaperPlaneTilt, CheckCircle, WarningCircle } from "@phosphor-icons/react";
-import type { Contact } from "../types";
-import { api, ApiError } from "../lib/api";
+import { useMemo, useRef, useState } from "react";
+import {
+  Sparkle,
+  PaperPlaneTilt,
+  CheckCircle,
+  WarningCircle,
+  Image as ImageIcon,
+  X,
+} from "@phosphor-icons/react";
+import type { Contact, UploadedMedia } from "../types";
+import { api, ApiError, MediaConflictError } from "../lib/api";
 import { sanitizeForSMS, smsSegments } from "../lib/sms";
-import { Button, Card, Field, inputClass } from "./ui";
+import { Button, Card, Field, Spinner, inputClass } from "./ui";
 import { AudiencePicker } from "./AudiencePicker";
 
 type Mode = "now" | "later";
 type Result = { kind: "ok"; text: string } | { kind: "err"; text: string } | null;
+
+// Vonage caps an MMS image caption at 300 characters.
+const MMS_CAPTION_MAX = 300;
+
+function kb(bytes: number) {
+  return `${Math.round(bytes / 1024)} KB`;
+}
 
 export function Composer({
   contacts,
@@ -30,10 +44,44 @@ export function Composer({
   const [submitting, setSubmitting] = useState(false);
   const [result, setResult] = useState<Result>(null);
 
+  const [media, setMedia] = useState<UploadedMedia | null>(null);
+  const [uploading, setUploading] = useState(false);
+  // Set when /api/media returns 409; holds the file so the retry can resend it.
+  const [conflict, setConflict] = useState<{ file: File; filename: string } | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+
   const sanitized = useMemo(() => sanitizeForSMS(message), [message]);
   const segments = smsSegments(sanitized.length);
+  const overCaption = media !== null && sanitized.length > MMS_CAPTION_MAX;
   const approxRecipients =
     selectedIds.size + csvPhones.length + manualPhones.length;
+
+  async function doUpload(file: File, onConflict?: "copy" | "replace") {
+    setResult(null);
+    setConflict(null);
+    setUploading(true);
+    try {
+      setMedia(await api.uploadMedia(file, onConflict));
+    } catch (e) {
+      if (e instanceof MediaConflictError) {
+        setConflict({ file, filename: e.detail.filename });
+      } else {
+        setResult({
+          kind: "err",
+          text: e instanceof ApiError ? e.message : "No se pudo subir la imagen.",
+        });
+      }
+    } finally {
+      setUploading(false);
+      if (fileInput.current) fileInput.current.value = "";
+    }
+  }
+
+  function removeMedia() {
+    setMedia(null);
+    setConflict(null);
+    if (fileInput.current) fileInput.current.value = "";
+  }
 
   function toggleContact(id: number) {
     setSelectedIds((prev) => {
@@ -81,6 +129,8 @@ export function Composer({
     name.trim() !== "" &&
     sanitized !== "" &&
     approxRecipients > 0 &&
+    !uploading &&
+    !overCaption &&
     (mode === "now" || scheduledAt !== "");
 
   async function send() {
@@ -99,6 +149,7 @@ export function Composer({
         // backend, which upserts, dedupes, and drops opt-outs.
         phones: [...csvPhones, ...manualPhones],
         scheduledAt: scheduledIso,
+        mediaUrl: media?.url ?? null,
       });
 
       if (mode === "now") {
@@ -121,6 +172,7 @@ export function Composer({
       setCsvPhones([]);
       setManualPhones([]);
       setScheduledAt("");
+      removeMedia();
       onCreated();
     } catch (e) {
       setResult({
@@ -170,10 +222,12 @@ export function Composer({
 
       <Card className="space-y-3">
         <Field
-          label="Mensaje"
+          label={media ? "Mensaje (pie de foto)" : "Mensaje"}
           hint={
-            <span>
-              {sanitized.length} car.  {segments} SMS
+            <span className={overCaption ? "text-[var(--status-failed)]" : undefined}>
+              {media
+                ? `${sanitized.length}/${MMS_CAPTION_MAX} car. · MMS`
+                : `${sanitized.length} car.  ${segments} SMS`}
             </span>
           }
         >
@@ -186,6 +240,13 @@ export function Composer({
           />
         </Field>
 
+        {overCaption && (
+          <p className="text-xs text-[var(--status-failed)]">
+            Con imagen el mensaje es el pie de foto y no puede pasar de{" "}
+            {MMS_CAPTION_MAX} caracteres. Quita la imagen o acorta el texto.
+          </p>
+        )}
+
         {message !== sanitized && (
           <p className="text-xs text-[var(--text-muted)]">
             Se enviará sin acentos ni emojis:{" "}
@@ -197,11 +258,95 @@ export function Composer({
         {/* Wrapper carries the top spacing: the card's space-y-* wins over a
             margin set on the button itself, and padding here leaves the
             button's own dimensions alone. */}
-        <div className="pt-5">
+        <div className="flex flex-wrap items-center gap-3 pt-5">
           <Button variant="secondary" onClick={suggest} loading={suggesting} type="button">
             <Sparkle size={16} weight="fill" /> Sugerir con IA
           </Button>
+
+          <input
+            ref={fileInput}
+            type="file"
+            accept="image/jpeg,image/png,image/gif"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              if (f) doUpload(f);
+            }}
+          />
+          <Button
+            variant="secondary"
+            type="button"
+            onClick={() => fileInput.current?.click()}
+            disabled={uploading || media !== null}
+          >
+            <ImageIcon size={16} weight="fill" /> Agregar imagen
+          </Button>
+
+          {uploading && (
+            <span className="inline-flex items-center gap-2 text-sm text-[var(--text-muted)]">
+              <Spinner /> Optimizando imagen…
+            </span>
+          )}
         </div>
+
+        {/* Same name as a previous upload: the user decides, nothing is overwritten silently. */}
+        {conflict && (
+          <div className="space-y-2 rounded-lg border border-[var(--border)] p-3">
+            <p className="text-sm">
+              Ya subiste una imagen llamada{" "}
+              <span className="font-mono">{conflict.filename}</span>.
+            </p>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => doUpload(conflict.file, "copy")}
+              >
+                Guardar como copia
+              </Button>
+              <Button
+                variant="secondary"
+                type="button"
+                onClick={() => doUpload(conflict.file, "replace")}
+              >
+                Reemplazar
+              </Button>
+              <Button variant="secondary" type="button" onClick={() => setConflict(null)}>
+                Cancelar
+              </Button>
+            </div>
+            <p className="text-xs text-[var(--text-muted)]">
+              Reemplazar cambia también la imagen en las campañas anteriores que la usaron.
+            </p>
+          </div>
+        )}
+
+        {media && (
+          <div className="flex items-center gap-3 rounded-lg border border-[var(--border)] p-3">
+            <img
+              src={media.url}
+              alt=""
+              className="h-16 w-16 shrink-0 rounded object-cover"
+            />
+            <div className="min-w-0 flex-1 text-sm">
+              <p className="truncate font-mono">{media.filename}</p>
+              <p className="text-xs text-[var(--text-muted)]">
+                {kb(media.bytes)}
+                {media.originalBytes > media.bytes &&
+                  ` · comprimida desde ${kb(media.originalBytes)}`}
+                {" · "}MMS solo llega a EE. UU. y Canadá
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={removeMedia}
+              aria-label="Quitar imagen"
+              className="shrink-0 rounded p-1 text-[var(--text-muted)] hover:text-[var(--text)]"
+            >
+              <X size={16} weight="bold" />
+            </button>
+          </div>
+        )}
       </Card>
 
       <Card className="space-y-4">

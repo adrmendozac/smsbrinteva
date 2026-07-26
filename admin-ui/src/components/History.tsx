@@ -271,6 +271,14 @@ function CampaignRow({
           aria-hidden="true"
           className="mt-1 shrink-0 text-[var(--text-muted)] [transform-box:fill-box] [transform-origin:center]"
         />
+        {/* Thumbnail of what actually went out, for campaigns sent as MMS. */}
+        {c.media_url && (
+          <img
+            src={c.media_url}
+            alt=""
+            className="mt-0.5 h-10 w-10 shrink-0 rounded object-cover"
+          />
+        )}
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <span className="truncate font-medium">{c.name}</span>

@@ -20,6 +20,8 @@ export interface Campaign {
   id: number;
   name: string;
   body: string;
+  // Set means the campaign went out as an MMS with body as the image caption.
+  media_url: string | null;
   status: CampaignStatus;
   scheduled_at: string | null;
   sent_count: number;
@@ -65,4 +67,21 @@ export interface CreateCampaignPayload {
   contactIds: number[];
   phones: string[];
   scheduledAt: string | null;
+  mediaUrl: string | null;
+}
+
+export interface UploadedMedia {
+  url: string;
+  filename: string;
+  bytes: number;
+  originalBytes: number;
+  format: string;
+}
+
+// 409 from /api/media: this name was used before. The user picks copy or replace.
+export interface MediaConflict {
+  error: string;
+  conflict: true;
+  filename: string;
+  existingUrl: string;
 }

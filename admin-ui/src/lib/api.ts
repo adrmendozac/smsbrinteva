@@ -4,6 +4,8 @@ import type {
   Campaign,
   CampaignDetail,
   CreateCampaignPayload,
+  UploadedMedia,
+  MediaConflict,
 } from "../types";
 
 export class ApiError extends Error {
@@ -11,6 +13,15 @@ export class ApiError extends Error {
   constructor(status: number, message: string) {
     super(message);
     this.status = status;
+  }
+}
+
+// Thrown on 409 so the caller can offer "guardar como copia" or "reemplazar".
+export class MediaConflictError extends ApiError {
+  detail: MediaConflict;
+  constructor(detail: MediaConflict) {
+    super(409, detail.error);
+    this.detail = detail;
   }
 }
 
@@ -40,7 +51,37 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return data as T;
 }
 
+// Multipart, so no Content-Type header — the browser sets its own boundary.
+async function uploadMedia(
+  file: File,
+  onConflict?: "copy" | "replace"
+): Promise<UploadedMedia> {
+  const token = getToken();
+  const form = new FormData();
+  form.append("image", file);
+
+  const qs = onConflict ? `?onConflict=${onConflict}` : "";
+  const res = await fetch(`/api/media${qs}`, {
+    method: "POST",
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    body: form,
+  });
+
+  if (res.status === 401) {
+    clearToken();
+    window.location.reload();
+    throw new ApiError(401, "Sesión expirada");
+  }
+
+  const text = await res.text();
+  const data = text ? JSON.parse(text) : null;
+  if (res.status === 409 && data?.conflict) throw new MediaConflictError(data);
+  if (!res.ok) throw new ApiError(res.status, data?.error || `Error ${res.status}`);
+  return data as UploadedMedia;
+}
+
 export const api = {
+  uploadMedia,
   getContacts: () => request<Contact[]>("/api/contacts"),
   // Every contact, opted-in or not, for the contact manager.
   getAllContacts: () => request<Contact[]>("/api/contacts/all"),
