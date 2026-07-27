@@ -563,8 +563,8 @@ function ContactRow({
                     )}
                   </span>
                   {contact.opted_in === false && (
-                    <span className="shrink-0 rounded-full bg-[var(--surface-sunken)] px-2 py-0.5 text-[11px] font-medium text-[var(--text-muted)]">
-                      sin consentimiento
+                    <span className="shrink-0 rounded-full bg-[var(--brand)] px-2 py-0.5 text-[11px] font-medium text-white">
+                      no recibe mensajes
                     </span>
                   )}
                 </div>

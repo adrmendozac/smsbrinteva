@@ -423,6 +423,10 @@ app.post('/inbound', async (req, res) => {
     );
     const inboundMsgId = inboundMsg.insertId;
 
+    // Every inbound message mirrors into Kommo, including STOP/START/HELP, so
+    // a seller sees an opt-out happen instead of a chat going silently stale.
+    await mirrorInboundToKommo({ phone: msisdn, name: null, text, msgid: inboundMsgId });
+
     const kw = keyword(text);
     const registered = REGISTERED_EN.has(kw);
 
@@ -435,9 +439,11 @@ app.post('/inbound', async (req, res) => {
         `UPDATE conversations SET status = 'resolved' WHERE id = ?`,
         [conversationId]
       );
-      await sendSMS(msisdn, registered
+      const reply = registered
         ? 'Brinteva Worlds: You have been successfully unsubscribed and will no longer receive messages. Reply START to resubscribe.'
-        : SPANISH_REPLIES.optOut, conversationId, 'system');
+        : SPANISH_REPLIES.optOut;
+      await sendSMS(msisdn, reply, conversationId, 'system');
+      await mirrorOutboundToKommo({ phone: msisdn, text: reply, msgid: `optout-${inboundMsgId}`, senderName: 'Brinteva Worlds', force: true });
       return;
     }
 
@@ -446,23 +452,24 @@ app.post('/inbound', async (req, res) => {
         `UPDATE contacts SET opted_in = TRUE, opted_out_at = NULL WHERE id = ?`,
         [contactId]
       );
-      await sendSMS(msisdn, registered
+      const reply = registered
         ? 'Brinteva Worlds: You have subscribed to receive recurring promotional messages. Message frequency varies. Message and data rates may apply. Reply STOP to cancel, HELP for help.'
-        : SPANISH_REPLIES.optIn, conversationId, 'system');
+        : SPANISH_REPLIES.optIn;
+      await sendSMS(msisdn, reply, conversationId, 'system');
+      await mirrorOutboundToKommo({ phone: msisdn, text: reply, msgid: `optin-${inboundMsgId}`, senderName: 'Brinteva Worlds', force: true });
       return;
     }
 
     // HELP auto-responder (registered 10DLC help keyword; must always reply,
     // even for opted-out contacts, so it runs before any AI/Kommo handling).
     if (HELP_KEYWORDS.has(kw)) {
-      await sendSMS(msisdn, registered
+      const reply = registered
         ? 'Brinteva Worlds: For help, email us at nicoll@brintevaworlds.com or call +1 (925) 262-8150. Message and data rates may apply. Reply STOP to cancel.'
-        : SPANISH_REPLIES.help, conversationId, 'system');
+        : SPANISH_REPLIES.help;
+      await sendSMS(msisdn, reply, conversationId, 'system');
+      await mirrorOutboundToKommo({ phone: msisdn, text: reply, msgid: `help-${inboundMsgId}`, senderName: 'Brinteva Worlds', force: true });
       return;
     }
-
-    // Mirror the customer's message into Kommo (after opt-in/out so those aren't mirrored).
-    await mirrorInboundToKommo({ phone: msisdn, name: null, text, msgid: inboundMsgId });
 
     const [convStatus] = await db.execute(
       'SELECT status FROM conversations WHERE id = ?', [conversationId]

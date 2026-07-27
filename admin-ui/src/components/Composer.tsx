@@ -259,10 +259,6 @@ export function Composer({
             margin set on the button itself, and padding here leaves the
             button's own dimensions alone. */}
         <div className="flex flex-wrap items-center gap-3 pt-5">
-          <Button variant="secondary" onClick={suggest} loading={suggesting} type="button">
-            <Sparkle size={16} weight="fill" /> Sugerir con IA
-          </Button>
-
           <input
             ref={fileInput}
             type="file"
@@ -280,6 +276,16 @@ export function Composer({
             disabled={uploading || media !== null}
           >
             <ImageIcon size={16} weight="fill" /> Agregar imagen
+          </Button>
+
+          <Button
+            variant="secondary"
+            onClick={suggest}
+            loading={suggesting}
+            type="button"
+            className="ml-auto"
+          >
+            <Sparkle size={16} weight="fill" /> Sugerir con IA
           </Button>
 
           {uploading && (
@@ -334,7 +340,6 @@ export function Composer({
                 {kb(media.bytes)}
                 {media.originalBytes > media.bytes &&
                   ` · comprimida desde ${kb(media.originalBytes)}`}
-                {" · "}MMS solo llega a EE. UU. y Canadá
               </p>
             </div>
             <button

@@ -1,10 +1,10 @@
 import { useMemo, useRef, useState } from "react";
 import { UploadSimple, MagnifyingGlass, X } from "@phosphor-icons/react";
 import type { Contact } from "../types";
-import { parsePhonesFromCsv } from "../lib/csv";
+import { parsePhonesFromFile, ImportError } from "../lib/importPhones";
 import { normalizeUsPhone, formatUsPhone } from "../lib/phone";
 import { cn } from "../lib/cn";
-import { inputClass } from "./ui";
+import { inputClass, Spinner } from "./ui";
 
 type Source = "contacts" | "manual" | "csv";
 
@@ -30,6 +30,8 @@ export function AudiencePicker({
   const [source, setSource] = useState<Source>("manual");
   const [query, setQuery] = useState("");
   const [csvName, setCsvName] = useState<string | null>(null);
+  const [csvError, setCsvError] = useState<string | null>(null);
+  const [reading, setReading] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const filtered = useMemo(() => {
@@ -51,14 +53,37 @@ export function AudiencePicker({
   async function onFile(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
     if (!file) return;
-    const text = await file.text();
-    onCsvPhones(parsePhonesFromCsv(text));
-    setCsvName(file.name);
+    setCsvError(null);
+    setReading(true);
+    try {
+      const phones = await parsePhonesFromFile(file);
+      if (phones.length === 0) {
+        setCsvError("No se encontro ningun telefono en el archivo.");
+        onCsvPhones([]);
+        setCsvName(null);
+      } else {
+        onCsvPhones(phones);
+        setCsvName(file.name);
+      }
+    } catch (err) {
+      setCsvError(
+        err instanceof ImportError
+          ? err.message
+          : "No se pudo leer el archivo. Intenta de nuevo.",
+      );
+      onCsvPhones([]);
+      setCsvName(null);
+    } finally {
+      setReading(false);
+      // Let the same file be picked again after an error.
+      if (fileRef.current) fileRef.current.value = "";
+    }
   }
 
   function clearCsv() {
     onCsvPhones([]);
     setCsvName(null);
+    setCsvError(null);
     if (fileRef.current) fileRef.current.value = "";
   }
 
@@ -202,7 +227,7 @@ export function AudiencePicker({
           <input
             ref={fileRef}
             type="file"
-            accept=".csv,text/csv,text/plain"
+            accept=".csv,.xlsx,text/csv,text/plain,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
             onChange={onFile}
             className="hidden"
           />
@@ -210,15 +235,25 @@ export function AudiencePicker({
             <button
               type="button"
               onClick={() => fileRef.current?.click()}
-              className="flex w-full flex-col items-center justify-center gap-2 py-6 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              disabled={reading}
+              className="flex w-full flex-col items-center justify-center gap-2 py-6 text-sm text-[var(--text-muted)] hover:text-[var(--text-primary)] disabled:opacity-60"
             >
-              <UploadSimple size={28} />
-              <span className="font-medium text-[var(--text-primary)]">
-                Subir CSV de teléfonos
-              </span>
-              <span className="text-xs">
-                Detecta la columna de teléfono automáticamente
-              </span>
+              {reading ? (
+                <>
+                  <Spinner />
+                  <span className="text-xs">Leyendo archivo…</span>
+                </>
+              ) : (
+                <>
+                  <UploadSimple size={28} />
+                  <span className="font-medium text-[var(--text-primary)]">
+                    Subir CSV o Excel
+                  </span>
+                  <span className="text-xs">
+                    Detecta la columna de teléfono automáticamente
+                  </span>
+                </>
+              )}
             </button>
           ) : (
             <div className="flex items-center gap-3 text-sm">
@@ -239,6 +274,12 @@ export function AudiencePicker({
                 <X size={16} />
               </button>
             </div>
+          )}
+
+          {csvError && (
+            <p className="mt-2 text-center text-xs text-[var(--status-failed)]">
+              {csvError}
+            </p>
           )}
         </div>
       )}
