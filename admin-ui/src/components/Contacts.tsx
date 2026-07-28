@@ -367,7 +367,7 @@ function AddContactForm({
       <input
         autoFocus
         value={name}
-        onChange={(e) => setName(e.target.value)}
+        onChange={(e) => setName(e.target.value.replace(/\d/g, ""))}
         placeholder="Nombre"
         className={inputClass}
       />
@@ -607,7 +607,7 @@ function ContactRow({
             <input
               autoFocus
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => setName(e.target.value.replace(/\d/g, ""))}
               placeholder="Nombre"
               className={inputClass}
             />

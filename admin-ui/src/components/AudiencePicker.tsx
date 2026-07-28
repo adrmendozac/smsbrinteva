@@ -34,7 +34,7 @@ export function AudiencePicker({
   useEffect(() => {
     if (preselectContactId != null && preselectContactId !== lastPreselect.current) {
       lastPreselect.current = preselectContactId;
-      setSource("contacts");
+      setSource("manual");
     }
   }, [preselectContactId]);
   const [query, setQuery] = useState("");

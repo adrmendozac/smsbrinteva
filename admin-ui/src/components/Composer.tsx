@@ -69,14 +69,17 @@ export function Composer({
   const [conflict, setConflict] = useState<{ file: File; filename: string } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
+  const contactsRef = useRef(contacts);
+  contactsRef.current = contacts;
+
   useEffect(() => {
     if (preselectContactId == null) return;
-    setSelectedIds((prev) => {
-      if (prev.has(preselectContactId)) return prev;
-      const next = new Set(prev);
-      next.add(preselectContactId);
-      return next;
-    });
+    const contact = contactsRef.current.find((c) => c.id === preselectContactId);
+    if (contact) {
+      setManualPhones((prev) =>
+        prev.includes(contact.phone) ? prev : [...prev, contact.phone]
+      );
+    }
     onConsumePreselect?.();
   }, [preselectContactId, onConsumePreselect]);
 

@@ -10,6 +10,7 @@ import { Composer } from "./components/Composer";
 import { History } from "./components/History";
 import { Contacts } from "./components/Contacts";
 import { Footer } from "./components/Footer";
+import { cn } from "./lib/cn";
 import { Eyebrow, Spinner } from "./components/ui";
 
 export default function App() {
@@ -110,8 +111,8 @@ export default function App() {
               below their content's intrinsic width, which is what let the
               Contactos card push the page wider. */}
           <div className="min-w-0 md:col-span-7 lg:col-span-8">
-            {tab === "compose" ? (
-              loadingContacts ? (
+            <div className={cn(tab !== "compose" && "hidden")}>
+              {loadingContacts ? (
                 <div className="flex justify-center py-16 text-[var(--text-muted)]">
                   <Spinner />
                 </div>
@@ -124,8 +125,9 @@ export default function App() {
                   preselectContactId={preselectContactId}
                   onConsumePreselect={() => setPreselectContactId(null)}
                 />
-              )
-            ) : tab === "contacts" ? (
+              )}
+            </div>
+            <div className={cn(tab !== "contacts" && "hidden")}>
               <Contacts
                 onCounts={setContactCounts}
                 onSendSms={(id) => {
@@ -133,9 +135,10 @@ export default function App() {
                   setTab("compose");
                 }}
               />
-            ) : (
+            </div>
+            <div className={cn(tab !== "history" && "hidden")}>
               <History refreshSignal={refreshSignal} onLoaded={setCampaigns} />
-            )}
+            </div>
           </div>
         </div>
       </main>
