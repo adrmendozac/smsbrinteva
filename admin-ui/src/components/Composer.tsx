@@ -35,6 +35,7 @@ export function Composer({
   onCreated,
   balance,
   pricePerSegment,
+  balanceError,
   preselectContactId,
   onConsumePreselect,
 }: {
@@ -42,6 +43,7 @@ export function Composer({
   onCreated: () => void;
   balance: string | null;
   pricePerSegment: string | null;
+  balanceError: boolean;
   preselectContactId?: number | null;
   onConsumePreselect?: () => void;
 }) {
@@ -490,6 +492,12 @@ export function Composer({
           >
             <SchedulePicker value={scheduledAt} onChange={setScheduledAt} />
           </div>
+        )}
+
+        {balanceError && media === null && approxRecipients > 0 && segments > 0 && (
+          <p className="text-xs text-[var(--status-failed)]">
+            No se pudo cargar el saldo — no se puede estimar el costo
+          </p>
         )}
 
         {estimatedCost !== null && (

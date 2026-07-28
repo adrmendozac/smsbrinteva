@@ -23,6 +23,10 @@ export default function App() {
   const [contactCounts, setContactCounts] = useState<ContactCounts | null>(null);
   const [balance, setBalance] = useState<string | null>(null);
   const [pricePerSegment, setPricePerSegment] = useState<string | null>(null);
+  // Distinct from balance/pricePerSegment being null while still loading: this
+  // flips true only once the request has actually failed, so the Rail and
+  // Composer can say so explicitly instead of the widget just never appearing.
+  const [balanceError, setBalanceError] = useState(false);
   const [preselectContactId, setPreselectContactId] = useState<number | null>(null);
 
   // Fetched once on login, not per-tab: this is Vonage's account balance and
@@ -35,10 +39,12 @@ export default function App() {
       .then((b) => {
         setBalance(b.balance);
         setPricePerSegment(b.pricePerSegment);
+        setBalanceError(false);
       })
       .catch(() => {
         setBalance(null);
         setPricePerSegment(null);
+        setBalanceError(true);
       });
   }, [authed]);
 
@@ -105,6 +111,7 @@ export default function App() {
             campaigns={campaigns}
             contactCounts={contactCounts}
             balance={balance}
+            balanceError={balanceError}
           />
 
           {/* min-w-0: grid items default to min-width:auto and refuse to shrink
@@ -122,6 +129,7 @@ export default function App() {
                   onCreated={onCreated}
                   balance={balance}
                   pricePerSegment={pricePerSegment}
+                  balanceError={balanceError}
                   preselectContactId={preselectContactId}
                   onConsumePreselect={() => setPreselectContactId(null)}
                 />
@@ -164,12 +172,14 @@ function Rail({
   campaigns,
   contactCounts,
   balance,
+  balanceError,
 }: {
   tab: Tab;
   contacts: Contact[];
   campaigns: Campaign[];
   contactCounts: ContactCounts | null;
   balance: string | null;
+  balanceError: boolean;
 }) {
   const root = useRef<HTMLDivElement>(null);
 
@@ -240,6 +250,14 @@ function Rail({
               : (contactCounts?.reachable ?? contacts.length)}
           </dd>
         </div>
+        {tab === "compose" && balanceError && (
+          <div>
+            <dt className="text-xs text-[var(--text-muted)]">Saldo Vonage</dt>
+            <dd className="mt-1 text-sm text-[var(--status-failed)]">
+              No se pudo cargar el saldo
+            </dd>
+          </div>
+        )}
         {tab === "compose" && balance !== null && (
           <div>
             <dt className="text-xs text-[var(--text-muted)]">Saldo Vonage</dt>

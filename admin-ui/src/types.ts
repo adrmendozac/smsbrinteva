@@ -103,7 +103,11 @@ export function countContacts(list: Contact[]): ContactCounts {
     // The same test App applies to build the send audience, so the number on the
     // rail cannot disagree with the number of people a campaign reaches.
     reachable: live.filter((c) => c.opted_in !== false).length,
-    optedOut: live.filter((c) => c.opted_in === false).length,
-    archived: list.length - live.length,
+    // All opted-out contacts, including archived — the user wants to see opted-out
+    // count regardless of archive status in both Activos and Archivados.
+    optedOut: list.filter((c) => c.opted_in === false).length,
+    // Only archived contacts that are NOT also opted-out (otherwise they'd be
+    // double-counted). The three counters still partition the full list.
+    archived: list.filter((c) => c.archived_at && c.opted_in !== false).length,
   };
 }
