@@ -24,6 +24,8 @@ app.use(express.urlencoded({ extended: true, verify: captureRaw }));
 
 // Admin campaign-launcher SPA, served same-origin at /admin (built to public/admin).
 app.use('/admin', express.static(path.join(__dirname, 'public/admin')));
+// Root static files: favicon.ico, etc. Legal pages are served by public.js routes.
+app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 // DB connection pool
 const db = mysql.createPool({

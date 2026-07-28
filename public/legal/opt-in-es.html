@@ -1,22 +1,22 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="es">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Get SMS Updates — Brinteva Worlds Inc.</title>
+  <title>Recibir Actualizaciones por SMS — Brinteva Worlds Inc.</title>
   <link rel="stylesheet" href="legal.css">
   <link rel="alternate" hreflang="en" href="opt-in.html">
   <link rel="alternate" hreflang="es" href="opt-in-es.html">
 </head>
 <body>
-  <h1>Get SMS Updates from Brinteva Worlds</h1>
-  <p class="muted">Sign up to receive travel deals, booking updates, and customer-care messages by text.</p>
+  <h1>Recibir Actualizaciones por SMS de Brinteva Worlds</h1>
+  <p class="muted">Regístrese para recibir ofertas de viajes, actualizaciones de reservas y mensajes de atención al cliente por mensaje de texto.</p>
 
   <form id="optin">
-    <label for="name">Full name</label>
+    <label for="name">Nombre completo</label>
     <input type="text" id="name" name="name" autocomplete="name" required>
 
-    <label for="phone">Mobile phone number</label>
+    <label for="phone">Número de teléfono móvil</label>
     <input type="tel" id="phone" name="phone" autocomplete="tel" placeholder="(555) 123-4567" required>
 
     <!-- Honeypot: hidden from users; bots tend to fill it. -->
@@ -28,21 +28,21 @@
     <div class="consent">
       <input type="checkbox" id="consent" name="consent" required>
       <label for="consent">
-        I agree to receive recurring automated marketing and customer-care text messages from
-        Brinteva Worlds Inc. at the number provided. Consent is not a condition of purchase.
-        Msg &amp; data rates may apply. Msg frequency varies. Reply STOP to cancel, HELP for help.
-        See our <a href="/privacy">Privacy Policy</a> and
-        <a href="/sms-terms">SMS Terms &amp; Conditions</a>.
+        Acepto recibir mensajes de texto automatizados recurrentes de marketing y atención al cliente de
+        Brinteva Worlds Inc. en el número proporcionado. El consentimiento no es una condición de compra.
+        Pueden aplicar tarifas de mensajes y datos. La frecuencia de los mensajes varía. Responda STOP para cancelar, HELP para obtener ayuda.
+        Consulte nuestra <a href="/privacy">Política de Privacidad</a> y
+        <a href="/sms-terms">Términos y Condiciones de SMS</a>.
       </label>
     </div>
 
-    <button type="submit" id="submit">Sign me up</button>
+    <button type="submit" id="submit">Suscribirme</button>
     <div id="status" role="status" aria-live="polite"></div>
   </form>
 
   <footer>
-    &copy; 2026 Brinteva Worlds Inc. All rights reserved. &middot;
-    <a href="/privacy">Privacy Policy</a> &middot; <a href="/sms-terms">SMS Terms &amp; Conditions</a>
+    &copy; 2026 Brinteva Worlds Inc. Todos los derechos reservados. &middot;
+    <a href="/privacy">Política de Privacidad</a> &middot; <a href="/sms-terms">Términos y Condiciones de SMS</a>
   </footer>
 
   <script>
@@ -54,7 +54,7 @@
       statusEl.textContent = '';
       statusEl.className = '';
       if (!document.getElementById('consent').checked) {
-        statusEl.textContent = 'Please check the consent box to continue.';
+        statusEl.textContent = 'Por favor, marque la casilla de consentimiento para continuar.';
         statusEl.className = 'err';
         return;
       }
@@ -74,16 +74,16 @@
         const data = await res.json();
         if (res.ok && data.ok) {
           form.reset();
-          statusEl.textContent = "You're subscribed! Check your phone for a confirmation text.";
+          statusEl.textContent = "¡Estás suscrito! Revisa tu teléfono para un mensaje de confirmación.";
           statusEl.className = 'ok';
           btn.disabled = true;
         } else {
-          statusEl.textContent = data.error || 'Something went wrong, please try again.';
+          statusEl.textContent = data.error || 'Algo salió mal, por favor intenta de nuevo.';
           statusEl.className = 'err';
           btn.disabled = false;
         }
       } catch (err) {
-        statusEl.textContent = 'Network error, please try again.';
+        statusEl.textContent = 'Error de red, por favor intenta de nuevo.';
         statusEl.className = 'err';
         btn.disabled = false;
       }
