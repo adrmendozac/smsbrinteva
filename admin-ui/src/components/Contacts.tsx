@@ -9,13 +9,27 @@ import {
   Archive,
   ArrowCounterClockwise,
 } from "@phosphor-icons/react";
-import type { Contact } from "../types";
+import { countContacts, type Contact, type ContactCounts } from "../types";
 import { api, ApiError } from "../lib/api";
 import { cn } from "../lib/cn";
 import { normalizeUsPhone, formatUsPhone } from "../lib/phone";
 import { Button, Card, Spinner, inputClass } from "./ui";
 
 type SubTab = "active" | "archived";
+
+// The list is a 32rem scroller showing about seven rows, but every mounted row
+// costs 11 hooks including two gsap contexts. Rendering the whole directory to
+// show seven was what made switching to this tab stutter, so rows come in a
+// page at a time as you scroll. The first page is smaller than the rest: it is
+// the one the tab switch has to pay for, while later pages arrive during a
+// scroll that is already in motion.
+const FIRST_PAGE = 15;
+const PAGE = 20;
+
+// How many rows get the entrance stagger — the whole first page, so no row can
+// pop in at full opacity next to one still animating. Later pages arrive
+// already visible.
+const REVEAL_ROWS = FIRST_PAGE;
 
 const reduceMotion = () =>
   window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -26,7 +40,11 @@ const reduceMotion = () =>
  * Activos and the campaign audience picker but keeps its send history), and
  * "Restaurar" brings it back.
  */
-export function Contacts({ onCount }: { onCount: (n: number | null) => void }) {
+export function Contacts({
+  onCounts,
+}: {
+  onCounts: (c: ContactCounts | null) => void;
+}) {
   const [contacts, setContacts] = useState<Contact[] | null>(null);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -45,9 +63,10 @@ export function Contacts({ onCount }: { onCount: (n: number | null) => void }) {
       );
   }, []);
 
-  // The rail counts reachable (active) contacts.
+  // The rail counts active contacts, and separately how many of them opted out.
+  // Archived contacts are excluded from both: they are out of play entirely.
   useEffect(() => {
-    if (contacts) onCount(contacts.filter((c) => !c.archived_at).length);
+    if (contacts) onCounts(countContacts(contacts));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contacts]);
 
@@ -87,23 +106,80 @@ export function Contacts({ onCount }: { onCount: (n: number | null) => void }) {
   }
 
   const listRef = useRef<HTMLUListElement>(null);
+  const sentinel = useRef<HTMLLIElement>(null);
+  const [limit, setLimit] = useState(FIRST_PAGE);
+
+  const visible = useMemo(() => filtered.slice(0, limit), [filtered, limit]);
+  const hasMore = limit < filtered.length;
+
+  // A new filter or tab is a new list; start counting again from the top.
+  useEffect(() => {
+    setLimit(FIRST_PAGE);
+  }, [query, tab]);
+
+  // Grow as the sentinel scrolls into the list's own scrollport. rootMargin
+  // loads the next page slightly early so scrolling never lands on a gap.
+  useEffect(() => {
+    const node = sentinel.current;
+    if (!node || !hasMore) return;
+    const io = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          setLimit((l) => l + PAGE);
+        }
+      },
+      { root: listRef.current, rootMargin: "200px" }
+    );
+    io.observe(node);
+    return () => io.disconnect();
+  }, [hasMore, visible.length]);
+
+  // Entrance stagger, on mount and tab switch only. Two things matter here:
+  // fromTo rather than from, because from() animates towards whatever opacity a
+  // row happens to have, so restarting it mid-tween pinned rows at that partial
+  // value instead of 1; and `query` is not a dependency, because re-running a
+  // 0.45s stagger on every keystroke both caused that and flickered.
   useGSAP(
     () => {
-      gsap.matchMedia().add("(prefers-reduced-motion: no-preference)", () => {
-        const rows = listRef.current?.querySelectorAll(":scope > li");
-        if (!rows?.length) return;
-        gsap.from(rows, {
-          autoAlpha: 0,
-          y: 8,
+      const all = listRef.current?.querySelectorAll(":scope > li:not([data-sentinel])");
+      if (!all?.length) return;
+      // Only the rows that can plausibly be on screen are animated. Tweening all
+      // 300 would set will-change on 300 elements at once — 300 compositor
+      // layers — for rows nobody can see. The rest simply start visible.
+      const rows = Array.from(all).slice(0, REVEAL_ROWS);
+      if (reduceMotion()) {
+        gsap.set(rows, { autoAlpha: 1, y: 0 });
+        return;
+      }
+      gsap.fromTo(
+        rows,
+        { autoAlpha: 0, y: 8 },
+        {
+          autoAlpha: 1,
+          y: 0,
           duration: 0.45,
           ease: "mass",
+          overwrite: "auto",
           stagger: { each: 0.03, amount: Math.min(0.03 * rows.length, 0.5) },
           onStart: () => gsap.set(rows, { willChange: "transform, opacity" }),
           onComplete: () => gsap.set(rows, { clearProps: "willChange" }),
-        });
-      });
+        }
+      );
     },
-    { dependencies: [query, tab], scope: listRef }
+    { dependencies: [tab], scope: listRef }
+  );
+
+  // Filtering re-keys the list, so rows can mount while the stagger above still
+  // holds earlier ones at partial opacity. Snap whatever is on screen to
+  // visible; the search results appear instantly rather than animating.
+  useGSAP(
+    () => {
+      const rows = listRef.current?.querySelectorAll(
+        ":scope > li:not([data-sentinel])"
+      );
+      if (rows?.length) gsap.set(rows, { autoAlpha: 1, y: 0 });
+    },
+    { dependencies: [query], scope: listRef }
   );
 
   if (error) {
@@ -201,7 +277,7 @@ export function Contacts({ onCount }: { onCount: (n: number | null) => void }) {
           ref={listRef}
           className="max-h-[32rem] overflow-y-auto border-t border-[var(--border)]"
         >
-          {filtered.map((c) => (
+          {visible.map((c) => (
             <ContactRow
               key={c.id}
               contact={c}
@@ -217,6 +293,9 @@ export function Contacts({ onCount }: { onCount: (n: number | null) => void }) {
               onArchived={replace}
             />
           ))}
+          {/* Only while more rows remain, so a fully-loaded list keeps
+              last:border-b-0 on its real last row. */}
+          {hasMore && <li ref={sentinel} data-sentinel aria-hidden="true" />}
         </ul>
       )}
     </Card>
@@ -505,7 +584,17 @@ function ContactRow({
   }
 
   return (
-    <li ref={root} className="border-b border-[var(--border)] last:border-b-0">
+    // content-visibility lets the browser skip layout and paint for off-screen
+    // rows, which is what keeps a 300-row directory smooth. It is dropped while
+    // editing: the mode carries paint containment, and that would clip the
+    // expanded row's scale and box-shadow to its own bounds.
+    <li
+      ref={root}
+      className={cn(
+        "border-b border-[var(--border)] last:border-b-0",
+        !isEditing && "[content-visibility:auto] [contain-intrinsic-size:auto_67px]"
+      )}
+    >
       <div ref={inner} className="overflow-hidden px-4 py-3">
         {isEditing ? (
           <div ref={fields} className="space-y-2.5">

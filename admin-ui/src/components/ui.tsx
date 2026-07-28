@@ -126,13 +126,12 @@ export function Card({
   // not replay it.
   useGSAP(
     () => {
-      gsap.matchMedia().add("(prefers-reduced-motion: no-preference)", () => {
-        gsap.from(shell.current, {
-          opacity: 0,
-          y: 30,
-          duration: 1,
-          ease: "power2.out",
-        });
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      gsap.from(shell.current, {
+        opacity: 0,
+        y: 30,
+        duration: 1,
+        ease: "power2.out",
       });
     },
     { scope: shell }

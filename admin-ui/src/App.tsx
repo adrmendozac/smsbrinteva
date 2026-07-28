@@ -1,9 +1,9 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { isAuthenticated, clearToken } from "./lib/auth";
 import { api } from "./lib/api";
-import type { Campaign, Contact } from "./types";
+import { countContacts, type Campaign, type Contact, type ContactCounts } from "./types";
 import { Login } from "./components/Login";
 import { Header, type Tab } from "./components/Header";
 import { Composer } from "./components/Composer";
@@ -15,11 +15,11 @@ import { Eyebrow, Spinner } from "./components/ui";
 export default function App() {
   const [authed, setAuthed] = useState(isAuthenticated());
   const [tab, setTab] = useState<Tab>("compose");
-  const [contacts, setContacts] = useState<Contact[]>([]);
+  const [directory, setDirectory] = useState<Contact[]>([]);
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [refreshSignal, setRefreshSignal] = useState(0);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [contactTotal, setContactTotal] = useState<number | null>(null);
+  const [contactCounts, setContactCounts] = useState<ContactCounts | null>(null);
 
   // Load the audience on login, then refresh it silently each time the compose
   // tab is shown — so a contact archived over in Contactos drops out of
@@ -30,15 +30,27 @@ export default function App() {
     if (!firstLoad.current && tab !== "compose") return;
     const spin = firstLoad.current;
     if (spin) setLoadingContacts(true);
+    // The whole directory rather than GET /api/contacts: the rail shows the
+    // opted-out count on every tab, and the sendable audience is a filter over
+    // this, so one request serves both.
     api
-      .getContacts()
-      .then(setContacts)
-      .catch(() => setContacts([]))
+      .getAllContacts()
+      .then((all) => {
+        setDirectory(all);
+        setContactCounts(countContacts(all));
+      })
+      .catch(() => setDirectory([]))
       .finally(() => {
         if (spin) setLoadingContacts(false);
         firstLoad.current = false;
       });
   }, [authed, tab]);
+
+  // The same rule the backend applies at send time: opted in and not archived.
+  const audience = useMemo(
+    () => directory.filter((c) => !c.archived_at && c.opted_in !== false),
+    [directory]
+  );
 
   if (!authed) return <Login onSuccess={() => setAuthed(true)} />;
 
@@ -64,9 +76,9 @@ export default function App() {
         <div className="grid gap-10 md:grid-cols-12 md:gap-12">
           <Rail
             tab={tab}
-            contacts={contacts}
+            contacts={audience}
             campaigns={campaigns}
-            contactTotal={contactTotal}
+            contactCounts={contactCounts}
           />
 
           {/* min-w-0: grid items default to min-width:auto and refuse to shrink
@@ -79,10 +91,10 @@ export default function App() {
                   <Spinner />
                 </div>
               ) : (
-                <Composer contacts={contacts} onCreated={onCreated} />
+                <Composer contacts={audience} onCreated={onCreated} />
               )
             ) : tab === "contacts" ? (
-              <Contacts onCount={setContactTotal} />
+              <Contacts onCounts={setContactCounts} />
             ) : (
               <History refreshSignal={refreshSignal} onLoaded={setCampaigns} />
             )}
@@ -104,31 +116,44 @@ function Rail({
   tab,
   contacts,
   campaigns,
-  contactTotal,
+  contactCounts,
 }: {
   tab: Tab;
   contacts: Contact[];
   campaigns: Campaign[];
-  contactTotal: number | null;
+  contactCounts: ContactCounts | null;
 }) {
   const root = useRef<HTMLDivElement>(null);
 
   useGSAP(
     () => {
-      gsap.matchMedia().add("(prefers-reduced-motion: no-preference)", () => {
-        const kids = root.current!.children;
-        gsap.from(kids, {
-          y: 24,
-          autoAlpha: 0,
+      // A plain query, not gsap.matchMedia(): this effect re-runs on every tab
+      // change, and each matchMedia() context was left unreverted.
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+      const kids = root.current!.children;
+      // fromTo, not from: from() animates towards whatever value the element
+      // currently holds, so switching tabs inside this ~1.3s tween made the new
+      // tween's destination the partial opacity it interrupted. Three quick
+      // switches and the heading ratcheted down to nearly invisible.
+      gsap.fromTo(
+        kids,
+        { y: 24, autoAlpha: 0 },
+        {
+          y: 0,
+          autoAlpha: 1,
           duration: 1,
           ease: "mass",
           stagger: 0.1,
+          overwrite: "auto",
           // Promote to a compositor layer for the tween only, then release it —
           // a permanent will-change would keep every heading on its own layer.
+          // Cleared on interrupt too, since overwrite means onComplete may never
+          // fire and the hint would be left on for good.
           onStart: () => gsap.set(kids, { willChange: "transform, opacity" }),
           onComplete: () => gsap.set(kids, { clearProps: "willChange" }),
-        });
-      });
+          onInterrupt: () => gsap.set(kids, { clearProps: "willChange" }),
+        }
+      );
     },
     { dependencies: [tab], scope: root }
   );
@@ -156,17 +181,15 @@ function Rail({
         {copy.title[1]}
       </h1>
 
-      <dl className="mt-8 flex justify-center gap-8 md:justify-start">
+      <dl className="mt-8 flex flex-wrap justify-center gap-6 sm:gap-8 md:justify-start">
         <div>
           <dt className="text-xs text-[var(--text-muted)]">
-            {tab === "history" ? "Campañas" : "Contactos"}
+            {tab === "history" ? "Campañas" : "Reciben mensajes"}
           </dt>
           <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-tight">
             {tab === "history"
               ? campaigns.length
-              : tab === "contacts"
-                ? (contactTotal ?? contacts.length)
-                : contacts.length}
+              : (contactCounts?.reachable ?? contacts.length)}
           </dd>
         </div>
         {tab === "history" && (
@@ -174,6 +197,27 @@ function Rail({
             <dt className="text-xs text-[var(--text-muted)]">Mensajes enviados</dt>
             <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-tight text-[var(--brand)]">
               {sent}
+            </dd>
+          </div>
+        )}
+        {/* The other half of the partition: these two sum to the active total and
+            mean the same thing on Envío and on Contactos, so neither number
+            depends on which tab you are looking at. */}
+        {tab !== "history" && contactCounts && (
+          <div>
+            <dt className="text-xs text-[var(--text-muted)]">No reciben mensajes</dt>
+            <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-tight text-[var(--brand)]">
+              {contactCounts.optedOut}
+            </dd>
+          </div>
+        )}
+        {/* Archived only on Contactos, the one screen where they can be acted
+            on. With this the three numbers account for every contact. */}
+        {tab === "contacts" && contactCounts && (
+          <div>
+            <dt className="text-xs text-[var(--text-muted)]">Archivados</dt>
+            <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-tight text-[var(--text-muted)]">
+              {contactCounts.archived}
             </dd>
           </div>
         )}

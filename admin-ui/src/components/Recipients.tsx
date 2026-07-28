@@ -80,23 +80,37 @@ export function Recipients({ campaignId, live }: { campaignId: number; live: boo
   const listRef = useRef<HTMLDivElement>(null);
   useGSAP(
     () => {
-      gsap.matchMedia().add("(prefers-reduced-motion: no-preference)", () => {
-        // The component renders a spinner / empty state before the list mounts,
-        // so the scope ref can still be null when this effect fires.
-        const rows = listRef.current?.querySelectorAll("tbody tr");
-        if (!rows?.length) return;
-        gsap.from(rows, {
-          autoAlpha: 0,
-          y: 6,
+      // The component renders a spinner / empty state before the list mounts,
+      // so the scope ref can still be null when this effect fires.
+      const all = listRef.current?.querySelectorAll("tbody tr");
+      if (!all?.length) return;
+      // Cap the element count, not just the stagger window: a 500-recipient
+      // campaign would otherwise put will-change on 500 rows at once.
+      const rows = Array.from(all).slice(0, 14);
+      if (!rows.length) return;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        gsap.set(rows, { autoAlpha: 1, y: 0 });
+        return;
+      }
+      // fromTo, not from: the live poll and the filter pills both re-run this,
+      // and from() would animate towards whatever opacity a row currently has,
+      // leaving rows stuck part-faded when a re-run lands mid-stagger.
+      gsap.fromTo(
+        rows,
+        { autoAlpha: 0, y: 6 },
+        {
+          autoAlpha: 1,
+          y: 0,
           duration: 0.45,
           ease: "mass",
-          stagger: { each: 0.03, amount: Math.min(0.03 * shown.length, 0.5) },
+          overwrite: "auto",
+          stagger: { each: 0.03, amount: Math.min(0.03 * rows.length, 0.5) },
           // Layer-promote for the duration of the reveal, then release so the
           // rows can be skipped by content-visibility again once at rest.
           onStart: () => gsap.set(rows, { willChange: "transform, opacity" }),
           onComplete: () => gsap.set(rows, { clearProps: "willChange" }),
-        });
-      });
+        }
+      );
     },
     { dependencies: [filter, shown.length], scope: listRef }
   );

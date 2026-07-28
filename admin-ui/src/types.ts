@@ -85,3 +85,25 @@ export interface MediaConflict {
   filename: string;
   existingUrl: string;
 }
+
+// The buckets the rail shows. Every contact falls in exactly one, so the three
+// sum to the absolute total. reachable + optedOut is the active population;
+// archived contacts are out of play and only surface on the Contactos tab.
+export interface ContactCounts {
+  reachable: number;
+  optedOut: number;
+  archived: number;
+}
+
+// Derived in two places — App, for the rail on every tab, and Contacts as its
+// own list changes under edits — so the rule lives next to the type.
+export function countContacts(list: Contact[]): ContactCounts {
+  const live = list.filter((c) => !c.archived_at);
+  return {
+    // The same test App applies to build the send audience, so the number on the
+    // rail cannot disagree with the number of people a campaign reaches.
+    reachable: live.filter((c) => c.opted_in !== false).length,
+    optedOut: live.filter((c) => c.opted_in === false).length,
+    archived: list.length - live.length,
+  };
+}
