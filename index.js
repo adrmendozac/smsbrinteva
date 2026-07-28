@@ -9,6 +9,7 @@ const { registerCampaignRoutes } = require('./lib/campaigns');
 const { registerContactRoutes } = require('./lib/contacts');
 const { registerMediaRoutes } = require('./lib/media');
 const { registerPublicRoutes } = require('./lib/public');
+const { registerAccountRoutes } = require('./lib/account');
 const { registerWebhookRoutes } = require('./lib/webhooks');
 const { startScheduler } = require('./lib/scheduler');
 const kommo = require('./lib/kommo');
@@ -169,10 +170,44 @@ async function pushKommoDeliveryStatus(msgid, deliveryStatus, error) {
 deps.mirrorInboundToKommo = mirrorInboundToKommo;
 deps.mirrorOutboundToKommo = mirrorOutboundToKommo;
 deps.pushKommoDeliveryStatus = pushKommoDeliveryStatus;
+
+async function sendKommoTyping({ phone }) {
+  if (!KOMMO.enabled || !KOMMO.scopeId || !KOMMO.secret) return;
+  try {
+    await kommo.sendTyping({
+      axios, scopeId: KOMMO.scopeId, secret: KOMMO.secret,
+      conversationId: kommo.conversationRef(phone),
+      senderId: kommo.conversationRef(phone)
+    });
+  } catch (err) {
+    console.error('[kommo] typing error:', err.message);
+  }
+}
+deps.sendKommoTyping = sendKommoTyping;
 // Campaign blasts are mirrored into Kommo as they send, so a seller opening the
 // chat sees what the customer was sent before any reply arrives.
 deps.mirrorCampaignToKommo = ({ phone, text, mediaUrl, msgid }) =>
   mirrorOutboundToKommo({ phone, text, mediaUrl, msgid, senderName: 'Brinteva Worlds', force: true });
+
+// ── Kommo CRM API (leads) ───────────────────────────────────────────────────
+// Separate from the Chats API above: creates an actual CRM lead (not just a
+// mirrored chat message) in the dedicated "Brinteva SMS" pipeline, so a
+// first-time inbound texter shows up on a seller's board, not only in Chats.
+
+const KOMMO_CRM = {
+  token: process.env.KOMMO_CRM_TOKEN,
+  subdomain: process.env.KOMMO_CRM_SUBDOMAIN,
+  pipelineId: Number(process.env.KOMMO_SMS_PIPELINE_ID),
+  statusId: Number(process.env.KOMMO_SMS_STATUS_ID),
+  mensajeClienteFieldId: Number(process.env.KOMMO_LEAD_MENSAJE_CLIENTE_FIELD_ID)
+};
+
+deps.createSmsLead = ({ phone, name, text }) => {
+  if (!KOMMO_CRM.token || !KOMMO_CRM.subdomain || !KOMMO_CRM.pipelineId || !KOMMO_CRM.statusId || !KOMMO_CRM.mensajeClienteFieldId) {
+    return Promise.resolve(null);
+  }
+  return kommo.createSmsLead({ axios, ...KOMMO_CRM, phone, name, text });
+};
 
 // Kommo -> us: an agent typed a reply inside Kommo. Deliver it over SMS and mute
 // the AI for that conversation. (Kommo only webhooks manager-authored messages,
@@ -246,6 +281,7 @@ registerWebhookRoutes(app, deps);
 registerCampaignRoutes(app, deps, requireAuth);
 registerContactRoutes(app, deps, requireAuth);
 registerMediaRoutes(app, deps, requireAuth);
+registerAccountRoutes(app, deps, requireAuth);
 startScheduler(deps);
 
 // The SMS number also carries VOICE and is published as the support line, so

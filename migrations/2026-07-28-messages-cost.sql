@@ -1,0 +1,2 @@
+ALTER TABLE messages ADD COLUMN cost DECIMAL(10,5) NULL AFTER status;
+ALTER TABLE broadcast_recipients ADD COLUMN cost DECIMAL(10,5) NULL AFTER error;

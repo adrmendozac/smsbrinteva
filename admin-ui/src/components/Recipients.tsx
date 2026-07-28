@@ -6,7 +6,7 @@ import { Check, Copy, Warning } from "@phosphor-icons/react";
 import type { CampaignDetail, Recipient, RecipientStatus } from "../types";
 import { api } from "../lib/api";
 import { cn } from "../lib/cn";
-import { formatPhone, formatTime, recipientStatusLabel } from "../lib/format";
+import { formatPhone, formatTime, friendlyRecipientError, recipientStatusLabel } from "../lib/format";
 import { Spinner } from "./ui";
 
 type Filter = "all" | RecipientStatus;
@@ -225,7 +225,7 @@ function Row({ recipient: r }: { recipient: Recipient }) {
         </span>
         {r.error && (
           <span className="ml-2 inline-flex items-center gap-1 text-xs text-[var(--text-muted)]">
-            <Warning size={12} /> {r.error}
+            <Warning size={12} /> {friendlyRecipientError(r.error)}
           </span>
         )}
       </td>

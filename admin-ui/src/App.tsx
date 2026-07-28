@@ -20,6 +20,14 @@ export default function App() {
   const [refreshSignal, setRefreshSignal] = useState(0);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [contactCounts, setContactCounts] = useState<ContactCounts | null>(null);
+  const [balance, setBalance] = useState<string | null>(null);
+
+  // Fetched once on login, not per-tab: this is Vonage's account balance, not
+  // something that changes from clicking around the admin UI.
+  useEffect(() => {
+    if (!authed) return;
+    api.getBalance().then((b) => setBalance(b.balance)).catch(() => setBalance(null));
+  }, [authed]);
 
   // Load the audience on login, then refresh it silently each time the compose
   // tab is shown — so a contact archived over in Contactos drops out of
@@ -69,16 +77,21 @@ export default function App() {
     // viewport wider (which shows up as a must-zoom-out horizontal scroll). clip
     // — unlike hidden — does not create a scroll container, so the sticky header
     // and sticky rail keep working.
-    <div className="min-h-full overflow-x-clip">
+    // flex-col + the footer as a flex-1 sibling of main (not a child) is what
+    // lets it sit flush with the viewport bottom on short pages instead of
+    // floating up under the content, while still scrolling away normally once
+    // main's content outgrows the viewport.
+    <div className="flex min-h-full flex-col overflow-x-clip">
       <Header tab={tab} onTab={setTab} onLogout={logout} />
 
-      <main className="mx-auto max-w-6xl px-4 pt-12 pb-24 sm:pt-16">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-12 pb-24 sm:pt-16">
         <div className="grid gap-10 md:grid-cols-12 md:gap-12">
           <Rail
             tab={tab}
             contacts={audience}
             campaigns={campaigns}
             contactCounts={contactCounts}
+            balance={balance}
           />
 
           {/* min-w-0: grid items default to min-width:auto and refuse to shrink
@@ -100,9 +113,9 @@ export default function App() {
             )}
           </div>
         </div>
-
-        <Footer />
       </main>
+
+      <Footer />
     </div>
   );
 }
@@ -112,16 +125,23 @@ export default function App() {
  * number that matters for the current view. Sticky on desktop so context stays
  * put while the work surface scrolls; collapses above the content on mobile.
  */
+// Below this, the balance reads as a warning rather than plain info — cheap
+// enough to hit fast on a multi-hundred-recipient campaign like the one that
+// prompted adding this in the first place.
+const LOW_BALANCE_USD = 10;
+
 function Rail({
   tab,
   contacts,
   campaigns,
   contactCounts,
+  balance,
 }: {
   tab: Tab;
   contacts: Contact[];
   campaigns: Campaign[];
   contactCounts: ContactCounts | null;
+  balance: string | null;
 }) {
   const root = useRef<HTMLDivElement>(null);
 
@@ -192,6 +212,27 @@ function Rail({
               : (contactCounts?.reachable ?? contacts.length)}
           </dd>
         </div>
+        {tab === "compose" && balance !== null && (
+          <div>
+            <dt className="text-xs text-[var(--text-muted)]">Saldo Vonage</dt>
+            <dd
+              className="mt-1 text-3xl font-semibold tabular-nums tracking-tight"
+              style={{
+                color:
+                  Number(balance) < LOW_BALANCE_USD
+                    ? "var(--status-failed)"
+                    : "var(--brand)",
+              }}
+            >
+              ${Number(balance).toFixed(2)}
+            </dd>
+            {Number(balance) < LOW_BALANCE_USD && (
+              <p className="mt-1 text-xs text-[var(--status-failed)]">
+                recordar a adrian agregar mas saldo
+              </p>
+            )}
+          </div>
+        )}
         {tab === "history" && (
           <div>
             <dt className="text-xs text-[var(--text-muted)]">Mensajes enviados</dt>

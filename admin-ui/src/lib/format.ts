@@ -49,6 +49,25 @@ export function recipientStatusLabel(status: string): string {
   return RECIPIENT_STATUS_ES[status] ?? status;
 }
 
+// Raw send errors are Vonage's problem-details text (or our own), aimed at a
+// developer reading logs. Match on the recognizable ones and hand back plain
+// Spanish instead; anything unrecognized still shows as-is rather than being
+// hidden, since an unmapped error is still useful signal.
+const ERROR_PATTERNS: [RegExp, string][] = [
+  [/invalid recipient|`to`.*parameter.*invalid/i, "Numero de telefono invalido"],
+  [/imagen no accesible/i, "No se pudo cargar la imagen"],
+  [/opted.?out|not.?opted.?in/i, "El contacto se dio de baja"],
+  [/rate.?limit|too many requests/i, "Limite de envio alcanzado, reintentando"],
+];
+
+export function friendlyRecipientError(error: string | null): string | null {
+  if (!error) return null;
+  for (const [pattern, label] of ERROR_PATTERNS) {
+    if (pattern.test(error)) return label;
+  }
+  return error;
+}
+
 // Stored as digits (19254355511). Grouped so a person can read it aloud.
 // Sending is not US-only -- 10DLC only governs US traffic -- so anything that
 // is not a US number falls back to plain E.164 rather than being forced into a

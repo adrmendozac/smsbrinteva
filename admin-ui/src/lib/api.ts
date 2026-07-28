@@ -121,4 +121,6 @@ export const api = {
       `/api/campaigns/${id}/archive`,
       { method: "PATCH", body: JSON.stringify({ archived }) }
     ),
+  getBalance: () =>
+    request<{ balance: string; autoReload: boolean }>("/api/account/balance"),
 };

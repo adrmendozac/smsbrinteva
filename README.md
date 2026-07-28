@@ -52,9 +52,6 @@ conversaciones.
 └── docs/superpowers/     # specs y planes de implementación
 ```
 
-`inbox-ui/` es una bandeja de entrada propia que quedó **descontinuada**: Kommo
-la reemplazó como interfaz de los vendedores. Se conserva solo como referencia.
-
 ---
 
 ## Variables de entorno (`.env`, nunca commiteado)
