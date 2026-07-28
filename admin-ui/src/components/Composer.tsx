@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Sparkle,
   PaperPlaneTilt,
@@ -10,8 +10,12 @@ import {
 import type { Contact, UploadedMedia } from "../types";
 import { api, ApiError, MediaConflictError } from "../lib/api";
 import { sanitizeForSMS, smsSegments } from "../lib/sms";
+import { cn } from "../lib/cn";
 import { Button, Card, Field, Spinner, inputClass } from "./ui";
 import { AudiencePicker } from "./AudiencePicker";
+import { SchedulePicker } from "./SchedulePicker";
+import { fromPacific, nowPacific, type WallClock } from "../lib/datetime";
+import { suggestCampaignName } from "../lib/campaignName";
 
 type Mode = "now" | "later";
 type Result = { kind: "ok"; text: string } | { kind: "err"; text: string } | null;
@@ -31,6 +35,9 @@ export function Composer({
   onCreated: () => void;
 }) {
   const [name, setName] = useState("");
+  // Once the admin writes their own name, the suggestion stops following the
+  // message. Reset on a successful send, and when the field is left empty.
+  const [nameTouched, setNameTouched] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [csvPhones, setCsvPhones] = useState<string[]>([]);
   // Hand-typed numbers. Kept apart from csvPhones so clearing a file doesn't
@@ -38,7 +45,8 @@ export function Composer({
   const [manualPhones, setManualPhones] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const [mode, setMode] = useState<Mode>("now");
-  const [scheduledAt, setScheduledAt] = useState("");
+  // Pacific wall-clock, not a browser-local string: see lib/datetime.ts.
+  const [scheduledAt, setScheduledAt] = useState<WallClock | null>(null);
 
   const [suggesting, setSuggesting] = useState(false);
   const [submitting, setSubmitting] = useState(false);
@@ -51,6 +59,21 @@ export function Composer({
   const fileInput = useRef<HTMLInputElement>(null);
 
   const sanitized = useMemo(() => sanitizeForSMS(message), [message]);
+
+  // Dates the empty-message fallback. Fixed per mount so the name does not
+  // change under the cursor if the composer is left open past midnight.
+  const mountedAt = useMemo(() => nowPacific(), []);
+  const suggestedName = useMemo(
+    () => suggestCampaignName(message, scheduledAt ?? mountedAt),
+    [message, scheduledAt, mountedAt]
+  );
+
+  // The field holds a real value, not a placeholder: broadcasts.name is NOT
+  // NULL, so a placeholder alone would still need something typed before the
+  // insert could succeed.
+  useEffect(() => {
+    if (!nameTouched) setName(suggestedName);
+  }, [suggestedName, nameTouched]);
   const segments = smsSegments(sanitized.length);
   const overCaption = media !== null && sanitized.length > MMS_CAPTION_MAX;
   const approxRecipients =
@@ -125,22 +148,29 @@ export function Composer({
     }
   }
 
+  // The instant the chosen Pacific wall-clock corresponds to, or null.
+  const scheduledInstant = useMemo(
+    () => (scheduledAt ? fromPacific(scheduledAt) : null),
+    [scheduledAt]
+  );
+
+  // Nothing validates the schedule here: SchedulePicker greys out every past
+  // day and hour, so an unreachable time cannot be produced in the first place.
+  // lib/campaigns.js still rejects one on the way in, for direct API calls.
   const canSend =
     name.trim() !== "" &&
     sanitized !== "" &&
     approxRecipients > 0 &&
     !uploading &&
     !overCaption &&
-    (mode === "now" || scheduledAt !== "");
+    (mode === "now" || scheduledInstant !== null);
 
   async function send() {
     setResult(null);
     setSubmitting(true);
     try {
       const scheduledIso =
-        mode === "later" && scheduledAt
-          ? new Date(scheduledAt).toISOString()
-          : null;
+        mode === "later" && scheduledInstant ? scheduledInstant.toISOString() : null;
       const { id, total } = await api.createCampaign({
         name: name.trim(),
         body: message,
@@ -165,13 +195,15 @@ export function Composer({
         });
       }
 
-      // Reset the form, keep the audience tools cleared.
+      // Reset the form, keep the audience tools cleared. Clearing nameTouched
+      // lets the next campaign pick up its own suggestion.
       setName("");
+      setNameTouched(false);
       setMessage("");
       setSelectedIds(new Set());
       setCsvPhones([]);
       setManualPhones([]);
-      setScheduledAt("");
+      setScheduledAt(null);
       removeMedia();
       onCreated();
     } catch (e) {
@@ -190,7 +222,16 @@ export function Composer({
         <Field label="Nombre de la campaña" required>
           <input
             value={name}
-            onChange={(e) => setName(e.target.value)}
+            onChange={(e) => {
+              setNameTouched(true);
+              setName(e.target.value);
+            }}
+            // Clearing the field and clicking away hands it back to the
+            // suggestion. Checked on blur rather than on change so holding
+            // backspace does not refill the box mid-edit.
+            onBlur={() => {
+              if (name.trim() === "") setNameTouched(false);
+            }}
             placeholder="Ej. Promo Italia · Junio"
             // broadcasts.name is varchar(200) NOT NULL; stop at the column
             // width rather than letting MySQL truncate on insert.
@@ -355,26 +396,56 @@ export function Composer({
       </Card>
 
       <Card className="space-y-4">
-        <div className="flex flex-wrap items-center gap-4">
-          <Radio
-            checked={mode === "now"}
-            onChange={() => setMode("now")}
-            label="Enviar ahora"
-          />
-          <Radio
-            checked={mode === "later"}
-            onChange={() => setMode("later")}
-            label="Programar"
-          />
-          {mode === "later" && (
-            <input
-              type="datetime-local"
-              value={scheduledAt}
-              onChange={(e) => setScheduledAt(e.target.value)}
-              className={`${inputClass} max-w-xs`}
-            />
-          )}
+        {/* Two tabs rather than radios: choosing Programar reveals a whole panel,
+            which is a change of view, not a field. Same pill tablist as the
+            Activos/Archivados split in Contactos. */}
+        <div
+          role="tablist"
+          aria-label="Cuándo enviar"
+          className="inline-flex rounded-full bg-[var(--surface-sunken)] p-1"
+        >
+          {(
+            [
+              ["now", "Enviar ahora"],
+              ["later", "Programar"],
+            ] as const
+          ).map(([key, label]) => (
+            <button
+              key={key}
+              role="tab"
+              type="button"
+              id={`when-tab-${key}`}
+              aria-selected={mode === key}
+              // Optional on role=tab, and only Programar has a panel to point at.
+              aria-controls={key === "later" ? "when-panel-later" : undefined}
+              onClick={() => setMode(key)}
+              className={cn(
+                "rounded-full px-4 py-1.5 text-sm font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--focus)]",
+                mode === key
+                  ? "bg-[var(--surface-elevated)] text-[var(--text-primary)] shadow-[var(--shadow-ambient)]"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-primary)]"
+              )}
+            >
+              {label}
+            </button>
+          ))}
         </div>
+
+        {/* Only Programar has a panel; Enviar ahora needs no further input, so it
+            drops straight through to the send button. */}
+        {mode === "later" && (
+          // pt, not mt: Card's space-y-4 sets margin-top through a `> * + *`
+          // selector, which outranks a plain mt-* class and would swallow it.
+          // Padding stacks on top of that 16px instead of fighting it.
+          <div
+            role="tabpanel"
+            id="when-panel-later"
+            aria-labelledby="when-tab-later"
+            className="pt-4"
+          >
+            <SchedulePicker value={scheduledAt} onChange={setScheduledAt} />
+          </div>
+        )}
 
         <div className="flex items-center gap-3 pt-5">
           <Button onClick={send} loading={submitting} disabled={!canSend}>
@@ -403,24 +474,3 @@ export function Composer({
   );
 }
 
-function Radio({
-  checked,
-  onChange,
-  label,
-}: {
-  checked: boolean;
-  onChange: () => void;
-  label: string;
-}) {
-  return (
-    <label className="inline-flex cursor-pointer items-center gap-2 text-sm">
-      <input
-        type="radio"
-        checked={checked}
-        onChange={onChange}
-        className="accent-[var(--primary)]"
-      />
-      {label}
-    </label>
-  );
-}
