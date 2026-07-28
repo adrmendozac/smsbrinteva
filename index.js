@@ -193,8 +193,15 @@ kommo.registerKommoRoutes(app, { env: process.env }, async (payload) => {
     `INSERT INTO contacts (phone) VALUES (?) ON DUPLICATE KEY UPDATE updated_at = NOW()`,
     [phone]
   );
-  const [contacts] = await db.execute('SELECT id FROM contacts WHERE phone = ?', [phone]);
+  const [contacts] = await db.execute('SELECT id, opted_in FROM contacts WHERE phone = ?', [phone]);
   const contactId = contacts[0].id;
+
+  if (!contacts[0].opted_in) {
+    console.log(`[kommo] agent reply skipped — contact ${phone} opted out`);
+    const kommoMsgid = m.message && m.message.id;
+    if (kommoMsgid) await pushKommoDeliveryStatus(String(kommoMsgid), -1, 'Contact opted out');
+    return;
+  }
 
   let [convRows] = await db.execute(
     `SELECT id FROM conversations WHERE contact_id = ? AND status != 'resolved'
