@@ -122,5 +122,10 @@ export const api = {
       { method: "PATCH", body: JSON.stringify({ archived }) }
     ),
   getBalance: () =>
-    request<{ balance: string; autoReload: boolean }>("/api/account/balance"),
+    request<{
+      balance: string;
+      autoReload: boolean;
+      pricePerSegment: string;
+      currency: string;
+    }>("/api/account/balance"),
 };

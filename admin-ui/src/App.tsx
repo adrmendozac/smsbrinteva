@@ -21,12 +21,24 @@ export default function App() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [contactCounts, setContactCounts] = useState<ContactCounts | null>(null);
   const [balance, setBalance] = useState<string | null>(null);
+  const [pricePerSegment, setPricePerSegment] = useState<string | null>(null);
+  const [preselectContactId, setPreselectContactId] = useState<number | null>(null);
 
-  // Fetched once on login, not per-tab: this is Vonage's account balance, not
-  // something that changes from clicking around the admin UI.
+  // Fetched once on login, not per-tab: this is Vonage's account balance and
+  // per-segment SMS price, not something that changes from clicking around
+  // the admin UI. Both feed the Rail's balance stat and the Composer's cost flair.
   useEffect(() => {
     if (!authed) return;
-    api.getBalance().then((b) => setBalance(b.balance)).catch(() => setBalance(null));
+    api
+      .getBalance()
+      .then((b) => {
+        setBalance(b.balance);
+        setPricePerSegment(b.pricePerSegment);
+      })
+      .catch(() => {
+        setBalance(null);
+        setPricePerSegment(null);
+      });
   }, [authed]);
 
   // Load the audience on login, then refresh it silently each time the compose
@@ -104,10 +116,23 @@ export default function App() {
                   <Spinner />
                 </div>
               ) : (
-                <Composer contacts={audience} onCreated={onCreated} />
+                <Composer
+                  contacts={audience}
+                  onCreated={onCreated}
+                  balance={balance}
+                  pricePerSegment={pricePerSegment}
+                  preselectContactId={preselectContactId}
+                  onConsumePreselect={() => setPreselectContactId(null)}
+                />
               )
             ) : tab === "contacts" ? (
-              <Contacts onCounts={setContactCounts} />
+              <Contacts
+                onCounts={setContactCounts}
+                onSendSms={(id) => {
+                  setPreselectContactId(id);
+                  setTab("compose");
+                }}
+              />
             ) : (
               <History refreshSignal={refreshSignal} onLoaded={setCampaigns} />
             )}

@@ -33,9 +33,17 @@ function kb(bytes: number) {
 export function Composer({
   contacts,
   onCreated,
+  balance,
+  pricePerSegment,
+  preselectContactId,
+  onConsumePreselect,
 }: {
   contacts: Contact[];
   onCreated: () => void;
+  balance: string | null;
+  pricePerSegment: string | null;
+  preselectContactId?: number | null;
+  onConsumePreselect?: () => void;
 }) {
   const [name, setName] = useState("");
   // Once the admin writes their own name, the suggestion stops following the
@@ -61,6 +69,17 @@ export function Composer({
   const [conflict, setConflict] = useState<{ file: File; filename: string } | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    if (preselectContactId == null) return;
+    setSelectedIds((prev) => {
+      if (prev.has(preselectContactId)) return prev;
+      const next = new Set(prev);
+      next.add(preselectContactId);
+      return next;
+    });
+    onConsumePreselect?.();
+  }, [preselectContactId, onConsumePreselect]);
+
   const sanitized = useMemo(() => sanitizeForSMS(message), [message]);
 
   // Dates the empty-message fallback. Fixed per mount so the name does not
@@ -82,6 +101,16 @@ export function Composer({
   const overOneSegment = media === null && sanitized.length > SMS_SEGMENT_MAX;
   const approxRecipients =
     selectedIds.size + csvPhones.length + manualPhones.length;
+
+  // MMS pricing isn't covered by the SMS pricing endpoint, so the flair only
+  // estimates plain-text sends — media !== null skips it rather than showing
+  // a number that understates the real cost.
+  const estimatedCost =
+    media === null && pricePerSegment !== null && approxRecipients > 0 && segments > 0
+      ? approxRecipients * segments * Number(pricePerSegment)
+      : null;
+  const overBalance =
+    estimatedCost !== null && balance !== null && estimatedCost > Number(balance);
 
   async function doUpload(file: File, onConflict?: "copy" | "replace") {
     setResult(null);
@@ -262,6 +291,7 @@ export function Composer({
             onCsvPhones={setCsvPhones}
             manualPhones={manualPhones}
             onManualPhones={setManualPhones}
+            preselectContactId={preselectContactId}
           />
         </Field>
       </Card>
@@ -457,6 +487,19 @@ export function Composer({
           >
             <SchedulePicker value={scheduledAt} onChange={setScheduledAt} />
           </div>
+        )}
+
+        {estimatedCost !== null && (
+          <p
+            className={cn(
+              "text-xs",
+              overBalance ? "text-[var(--status-failed)]" : "text-[var(--text-muted)]"
+            )}
+          >
+            Costo estimado: ~${estimatedCost.toFixed(2)}
+            {balance !== null && ` (saldo: $${Number(balance).toFixed(2)})`}
+            {overBalance && " — supera el saldo disponible"}
+          </p>
         )}
 
         <div className="flex items-center gap-3 pt-5">

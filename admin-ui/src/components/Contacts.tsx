@@ -8,6 +8,7 @@ import {
   PencilSimple,
   Archive,
   ArrowCounterClockwise,
+  PaperPlaneTilt,
 } from "@phosphor-icons/react";
 import { countContacts, type Contact, type ContactCounts } from "../types";
 import { api, ApiError } from "../lib/api";
@@ -42,8 +43,10 @@ const reduceMotion = () =>
  */
 export function Contacts({
   onCounts,
+  onSendSms,
 }: {
   onCounts: (c: ContactCounts | null) => void;
+  onSendSms?: (contactId: number) => void;
 }) {
   const [contacts, setContacts] = useState<Contact[] | null>(null);
   const [error, setError] = useState("");
@@ -291,6 +294,7 @@ export function Contacts({
                 setEditingId(null);
               }}
               onArchived={replace}
+              onSendSms={onSendSms}
             />
           ))}
           {/* Only while more rows remain, so a fully-loaded list keeps
@@ -413,6 +417,7 @@ function ContactRow({
   onCancel,
   onSaved,
   onArchived,
+  onSendSms,
 }: {
   contact: Contact;
   archived: boolean;
@@ -422,6 +427,7 @@ function ContactRow({
   onCancel: () => void;
   onSaved: (c: Contact) => void;
   onArchived: (c: Contact) => void;
+  onSendSms?: (contactId: number) => void;
 }) {
   const root = useRef<HTMLLIElement>(null);
   const inner = useRef<HTMLDivElement>(null);
@@ -679,6 +685,13 @@ function ContactRow({
                   </RowButton>
                 ) : (
                   <>
+                      <RowButton
+                      tone="green"
+                      onClick={() => onSendSms?.(contact.id)}
+                      icon={<PaperPlaneTilt size={15} weight="bold" />}
+                    >
+                      Enviar SMS
+                    </RowButton>
                     <RowButton
                       tone="navy"
                       onClick={startEdit}
@@ -714,7 +727,7 @@ function ContactRow({
   );
 }
 
-/** Per-row action pill: navy for edit/restore, red for archive; white type. */
+/** Per-row action pill: navy for edit/restore, red for archive, green for send; white type. */
 function RowButton({
   tone,
   icon,
@@ -722,7 +735,7 @@ function RowButton({
   onClick,
   disabled,
 }: {
-  tone: "navy" | "red";
+  tone: "navy" | "red" | "green";
   icon: ReactNode;
   children: ReactNode;
   onClick?: () => void;
@@ -735,7 +748,7 @@ function RowButton({
       disabled={disabled}
       className={cn(
         "inline-flex touch-manipulation items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium text-white outline-none transition-[filter,transform] duration-200 ease-[var(--ease-mass)] hover:brightness-110 focus-visible:ring-2 focus-visible:ring-[var(--focus)] focus-visible:ring-offset-1 active:scale-[0.96] disabled:opacity-50",
-        tone === "navy" ? "bg-[var(--primary)]" : "bg-[var(--status-failed)]"
+        tone === "navy" ? "bg-[var(--primary)]" : tone === "green" ? "bg-[var(--status-completed)]" : "bg-[var(--status-failed)]"
       )}
     >
       {icon}

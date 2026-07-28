@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { UploadSimple, MagnifyingGlass, X } from "@phosphor-icons/react";
 import type { Contact } from "../types";
 import { parsePhonesFromFile, ImportError } from "../lib/importPhones";
@@ -17,6 +17,7 @@ export function AudiencePicker({
   onCsvPhones,
   manualPhones,
   onManualPhones,
+  preselectContactId,
 }: {
   contacts: Contact[];
   selectedIds: Set<number>;
@@ -26,8 +27,16 @@ export function AudiencePicker({
   onCsvPhones: (phones: string[]) => void;
   manualPhones: string[];
   onManualPhones: (phones: string[]) => void;
+  preselectContactId?: number | null;
 }) {
   const [source, setSource] = useState<Source>("manual");
+  const lastPreselect = useRef<number | null>(null);
+  useEffect(() => {
+    if (preselectContactId != null && preselectContactId !== lastPreselect.current) {
+      lastPreselect.current = preselectContactId;
+      setSource("contacts");
+    }
+  }, [preselectContactId]);
   const [query, setQuery] = useState("");
   const [csvName, setCsvName] = useState<string | null>(null);
   const [csvError, setCsvError] = useState<string | null>(null);
@@ -135,7 +144,16 @@ export function AudiencePicker({
       </div>
 
       {source === "manual" && (
-        <ManualEntry phones={manualPhones} onPhones={onManualPhones} />
+        <div className="space-y-3">
+          <ContactSearch
+            contacts={contacts}
+            phones={manualPhones}
+            onAddPhone={(p) => {
+              if (!manualPhones.includes(p)) onManualPhones([...manualPhones, p]);
+            }}
+          />
+          <ManualEntry phones={manualPhones} onPhones={onManualPhones} />
+        </div>
       )}
 
       {source === "contacts" && (
@@ -282,6 +300,75 @@ export function AudiencePicker({
             </p>
           )}
         </div>
+      )}
+    </div>
+  );
+}
+
+function ContactSearch({
+  contacts,
+  phones,
+  onAddPhone,
+}: {
+  contacts: Contact[];
+  phones: string[];
+  onAddPhone: (phone: string) => void;
+}) {
+  const [query, setQuery] = useState("");
+
+  const results = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    if (!q) return [];
+    return contacts.filter(
+      (c) => c.phone.includes(q) || (c.name ?? "").toLowerCase().includes(q)
+    );
+  }, [contacts, query]);
+
+  return (
+    <div>
+      <div className="relative">
+        <MagnifyingGlass
+          size={16}
+          className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
+        />
+        <input
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Buscar contacto existente…"
+          className={cn(inputClass, "pl-8")}
+        />
+      </div>
+      {query.trim() && results.length > 0 && (
+        <ul className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1">
+          {results.map((c) => {
+            const alreadyAdded = phones.includes(c.phone);
+            return (
+              <li key={c.id}>
+                <button
+                  type="button"
+                  disabled={alreadyAdded}
+                  onClick={() => onAddPhone(c.phone)}
+                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-[var(--surface-sunken)] disabled:opacity-40 disabled:hover:bg-transparent"
+                >
+                  <span className="shrink-0 rounded border border-[var(--border)] px-1 text-xs text-[var(--text-muted)]">
+                    {alreadyAdded ? "✓" : "+"}
+                  </span>
+                  <span className="font-mono text-xs">{c.phone}</span>
+                  {c.name && (
+                    <span className="truncate text-[var(--text-muted)]">
+                      {c.name}
+                    </span>
+                  )}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {query.trim() && results.length === 0 && (
+        <p className="mt-1 text-xs text-[var(--text-muted)]">
+          Sin contactos que coincidan
+        </p>
       )}
     </div>
   );
