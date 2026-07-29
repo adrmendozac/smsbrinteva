@@ -315,16 +315,12 @@ function CampaignRow({
             archive button stays right-aligned instead of jumping left. */}
         {estimatedCost !== null && (
           <span className="mr-auto">
-            <Eyebrow>~${estimatedCost.toFixed(2)}</Eyebrow>
+            <Eyebrow>Costo: ~${estimatedCost.toFixed(2)}</Eyebrow>
           </span>
         )}
-        <button
-          type="button"
-          onClick={onArchiveToggle}
-          className="text-xs font-medium text-[var(--text-muted)] transition-colors hover:text-[var(--text-primary)]"
-        >
+        <Button variant="ghost" type="button" onClick={onArchiveToggle}>
           {archived ? "Restaurar" : "Archivar"}
-        </button>
+        </Button>
       </div>
 
       {expanded && (
