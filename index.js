@@ -13,6 +13,7 @@ const { registerAccountRoutes } = require('./lib/account');
 const { registerWebhookRoutes } = require('./lib/webhooks');
 const { startScheduler } = require('./lib/scheduler');
 const kommo = require('./lib/kommo');
+const kommoCrm = require('./lib/kommoCrm');
 const { sendMessage, sendImage } = require('./lib/vonage');
 const { registerVoiceRoutes } = require('./lib/voice');
 
@@ -271,6 +272,68 @@ kommo.registerKommoRoutes(app, { env: process.env }, async (payload) => {
     await pushKommoDeliveryStatus(String(kommoMsgid), -1, 'SMS send failed');
   }
   console.log(`[kommo] agent reply relayed to ${phone} (conv ${conversationId})`);
+});
+
+// ── Kommo CRM API routes (admin-facing) ──────────────────────────────────
+// Authenticated endpoints exposing custom field sync, task creation, pipeline
+// management, and Salesbot trigger. All gated behind KOMMO_CRM_TOKEN.
+
+const KOMMO_CRM_DEPS = { axios, subdomain: KOMMO_CRM.subdomain, token: KOMMO_CRM.token };
+
+// GET /api/kommo/custom-fields — list custom field definitions for leads.
+app.get('/api/kommo/custom-fields', requireAuth, async (req, res) => {
+  const fields = await kommoCrm.getLeadCustomFields(KOMMO_CRM_DEPS);
+  if (!fields) return res.status(502).json({ error: 'Failed to fetch custom fields from Kommo' });
+  res.json({ custom_fields: fields });
+});
+
+// POST /api/kommo/custom-fields/sync — push DB values to a Kommo lead.
+// Body: { leadId, fields: [{ field_id, values: [{ value }] }] }
+app.post('/api/kommo/custom-fields/sync', requireAuth, async (req, res) => {
+  const { leadId, fields } = req.body;
+  if (!leadId || !fields) return res.status(400).json({ error: 'leadId and fields required' });
+  const ok = await kommoCrm.updateLeadCustomFields({ ...KOMMO_CRM_DEPS, leadId, fields });
+  if (!ok) return res.status(502).json({ error: 'Failed to sync custom fields' });
+  res.json({ ok: true });
+});
+
+// POST /api/kommo/tasks — create a task linked to a lead or contact.
+// Body: { leadId?, contactId?, text, taskTypeId?, completeTill? }
+app.post('/api/kommo/tasks', requireAuth, async (req, res) => {
+  const { leadId, contactId, text, taskTypeId, completeTill } = req.body;
+  if (!text || (!leadId && !contactId)) {
+    return res.status(400).json({ error: 'text and either leadId or contactId required' });
+  }
+  const task = await kommoCrm.createTask({ ...KOMMO_CRM_DEPS, leadId, contactId, text, taskTypeId, completeTill });
+  if (!task) return res.status(502).json({ error: 'Failed to create task in Kommo' });
+  res.json({ task });
+});
+
+// GET /api/kommo/pipelines — list all pipelines with their stages.
+app.get('/api/kommo/pipelines', requireAuth, async (req, res) => {
+  const pipelines = await kommoCrm.getPipelines(KOMMO_CRM_DEPS);
+  if (!pipelines) return res.status(502).json({ error: 'Failed to fetch pipelines from Kommo' });
+  res.json({ pipelines });
+});
+
+// PATCH /api/kommo/leads/:id/pipeline — move a lead to a different stage.
+// Body: { statusId }
+app.patch('/api/kommo/leads/:id/pipeline', requireAuth, async (req, res) => {
+  const { statusId } = req.body;
+  if (!statusId) return res.status(400).json({ error: 'statusId required' });
+  const ok = await kommoCrm.moveLead({ ...KOMMO_CRM_DEPS, leadId: req.params.id, statusId });
+  if (!ok) return res.status(502).json({ error: 'Failed to move lead in Kommo' });
+  res.json({ ok: true });
+});
+
+// POST /api/kommo/salesbot — trigger a Salesbot automation for a lead.
+// Body: { botId, leadId }
+app.post('/api/kommo/salesbot', requireAuth, async (req, res) => {
+  const { botId, leadId } = req.body;
+  if (!botId || !leadId) return res.status(400).json({ error: 'botId and leadId required' });
+  const ok = await kommoCrm.triggerSalesbot({ ...KOMMO_CRM_DEPS, botId, leadId });
+  if (!ok) return res.status(502).json({ error: 'Failed to trigger Salesbot' });
+  res.json({ ok: true });
 });
 
 // ── Route wiring ─────────────────────────────────────────────────────────

@@ -11,15 +11,18 @@ import type { Campaign } from "../types";
 import { api } from "../lib/api";
 import { cn } from "../lib/cn";
 import { formatDateTime } from "../lib/format";
+import { sanitizeForSMS, smsSegments } from "../lib/sms";
 import { Button, Card, Spinner, StatusPill } from "./ui";
 import { Recipients } from "./Recipients";
 
 export function History({
   refreshSignal,
   onLoaded,
+  pricePerSegment,
 }: {
   refreshSignal: number;
   onLoaded?: (c: Campaign[]) => void;
+  pricePerSegment: string | null;
 }) {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
@@ -181,6 +184,7 @@ export function History({
                 onToggle={() => setExpandedId(expandedId === c.id ? null : c.id)}
                 archived={tab === "archived"}
                 onArchiveToggle={() => setArchived([c.id], tab === "active")}
+                pricePerSegment={pricePerSegment}
               />
             </li>
           ))}
@@ -196,12 +200,14 @@ function CampaignRow({
   onToggle,
   archived,
   onArchiveToggle,
+  pricePerSegment,
 }: {
   campaign: Campaign;
   expanded: boolean;
   onToggle: () => void;
   archived: boolean;
   onArchiveToggle: () => void;
+  pricePerSegment: string | null;
 }) {
   const live = c.status === "sending";
   const root = useRef<HTMLDivElement>(null);
@@ -288,7 +294,6 @@ function CampaignRow({
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--text-muted)]">
             <span>Creada {formatDateTime(c.created_at)}</span>
             {c.scheduled_at && <span>Programada {formatDateTime(c.scheduled_at)}</span>}
-            {c.created_by && <span>por {c.created_by}</span>}
           </div>
         </div>
         <Counts campaign={c} />
@@ -336,11 +341,7 @@ function Counts({ campaign }: { campaign: Campaign }) {
         </span>
       </div>
       <div className="text-xs text-[var(--text-muted)]">enviados</div>
-      {failed_count > 0 && (
-        <div className="text-xs text-[var(--status-failed)]">
-          {failed_count} fallidos
-        </div>
-      )}
+      
     </div>
   );
 }

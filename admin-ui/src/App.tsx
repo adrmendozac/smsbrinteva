@@ -145,7 +145,11 @@ export default function App() {
               />
             </div>
             <div className={cn(tab !== "history" && "hidden")}>
-              <History refreshSignal={refreshSignal} onLoaded={setCampaigns} />
+              <History
+                refreshSignal={refreshSignal}
+                onLoaded={setCampaigns}
+                pricePerSegment={pricePerSegment}
+              />
             </div>
           </div>
         </div>
