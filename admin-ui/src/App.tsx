@@ -102,14 +102,13 @@ export default function App() {
     // viewport wider (which shows up as a must-zoom-out horizontal scroll). clip
     // — unlike hidden — does not create a scroll container, so the sticky header
     // and sticky rail keep working.
-    // flex-col + the footer as a flex-1 sibling of main (not a child) is what
-    // lets it sit flush with the viewport bottom on short pages instead of
-    // floating up under the content, while still scrolling away normally once
-    // main's content outgrows the viewport.
+    // flex-col layout; the footer is position:fixed so it stays at viewport
+    // bottom regardless of scroll. pb-24 on main keeps content from hiding
+    // behind it.
     <div className="flex min-h-full flex-col overflow-x-clip">
       <Header tab={tab} onTab={setTab} onLogout={logout} />
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-12 pb-24 sm:pt-16">
+      <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-12 pb-24 sm:pt-16 sm:pb-28">
         <div className="grid gap-10 md:grid-cols-12 md:gap-12">
           <Rail
             tab={tab}
