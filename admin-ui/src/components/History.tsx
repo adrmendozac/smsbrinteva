@@ -12,7 +12,7 @@ import { api } from "../lib/api";
 import { cn } from "../lib/cn";
 import { formatDateTime } from "../lib/format";
 import { sanitizeForSMS, smsSegments } from "../lib/sms";
-import { Button, Card, Spinner, StatusPill } from "./ui";
+import { Button, Card, Eyebrow, Spinner, StatusPill } from "./ui";
 import { Recipients } from "./Recipients";
 
 export function History({
@@ -210,6 +210,15 @@ function CampaignRow({
   pricePerSegment: string | null;
 }) {
   const live = c.status === "sending";
+
+  // Based on sent_count, not total_count: this is what the campaign cost, not
+  // a forecast. Hidden for MMS — the price feeding this only covers SMS, so an
+  // image campaign would show a number well under what it actually billed.
+  const estimatedCost =
+    !c.media_url && pricePerSegment !== null && c.sent_count > 0
+      ? c.sent_count * smsSegments(sanitizeForSMS(c.body).length) * Number(pricePerSegment)
+      : null;
+
   const root = useRef<HTMLDivElement>(null);
   const panel = useRef<HTMLDivElement>(null);
   const caret = useRef<SVGSVGElement>(null);
@@ -296,12 +305,19 @@ function CampaignRow({
             {c.scheduled_at && <span>Programada {formatDateTime(c.scheduled_at)}</span>}
           </div>
         </div>
-        <Counts campaign={c} pricePerSegment={pricePerSegment} />
+        <Counts campaign={c} />
       </button>
 
       {/* Sibling of the toggle, never nested inside it — a button within a
           button is invalid and breaks keyboard activation. */}
-      <div className="flex justify-end border-t border-[var(--border)] px-5 py-2">
+      <div className="flex items-center justify-end border-t border-[var(--border)] px-5 py-2">
+        {/* mr-auto rather than justify-between: with no cost to show, the
+            archive button stays right-aligned instead of jumping left. */}
+        {estimatedCost !== null && (
+          <span className="mr-auto">
+            <Eyebrow>~${estimatedCost.toFixed(2)}</Eyebrow>
+          </span>
+        )}
         <button
           type="button"
           onClick={onArchiveToggle}
@@ -330,23 +346,8 @@ function CampaignRow({
   );
 }
 
-function Counts({
-  campaign,
-  pricePerSegment,
-}: {
-  campaign: Campaign;
-  pricePerSegment: string | null;
-}) {
-  const { sent_count, failed_count, total_count, body, media_url } = campaign;
-
-  // Based on sent_count, not total_count: this is what the campaign cost, not
-  // a forecast. Hidden for MMS — the price feeding this only covers SMS, so an
-  // image campaign would show a number well under what it actually billed.
-  const estimatedCost =
-    !media_url && pricePerSegment !== null && sent_count > 0
-      ? sent_count * smsSegments(sanitizeForSMS(body).length) * Number(pricePerSegment)
-      : null;
-
+function Counts({ campaign }: { campaign: Campaign }) {
+  const { sent_count, total_count } = campaign;
   return (
     <div className="shrink-0 text-right">
       <div className="text-lg font-semibold tabular-nums">
@@ -356,16 +357,6 @@ function Counts({
         </span>
       </div>
       <div className="text-xs text-[var(--text-muted)]">enviados</div>
-      {estimatedCost !== null && (
-        <div className="text-xs tabular-nums text-[var(--text-muted)]">
-          ~${estimatedCost.toFixed(2)}
-        </div>
-      )}
-      {failed_count > 0 && (
-        <div className="text-xs text-[var(--status-failed)]">
-          {failed_count} fallidos
-        </div>
-      )}
     </div>
   );
 }
