@@ -12,7 +12,7 @@ import { api } from "../lib/api";
 import { cn } from "../lib/cn";
 import { formatDateTime } from "../lib/format";
 import { sanitizeForSMS, smsSegments } from "../lib/sms";
-import { Button, Card, Eyebrow, Spinner, StatusPill } from "./ui";
+import { Button, Card, Spinner, StatusPill } from "./ui";
 import { Recipients } from "./Recipients";
 
 export function History({
@@ -313,9 +313,13 @@ function CampaignRow({
       <div className="flex items-center justify-end border-t border-[var(--border)] px-5 py-2">
         {/* mr-auto rather than justify-between: with no cost to show, the
             archive button stays right-aligned instead of jumping left. */}
+        {/* Geometry deliberately matches Button (same rounded-full, px-6 py-3,
+            text-sm font-medium) so it balances Archivar across the row, but on
+            a muted surface rather than crimson — it is a readout, not a
+            control, and an identical crimson pill would read as clickable. */}
         {estimatedCost !== null && (
-          <span className="mr-auto">
-            <Eyebrow>Costo: ~${estimatedCost.toFixed(2)}</Eyebrow>
+          <span className="mr-auto inline-flex items-center justify-center rounded-full bg-[var(--surface-sunken)] px-6 py-3 text-sm font-medium tabular-nums text-[var(--text-primary)] shadow-[0_0_0_1px_var(--hairline)]">
+            Costo: ~${estimatedCost.toFixed(2)}
           </span>
         )}
         <Button variant="ghost" type="button" onClick={onArchiveToggle}>
