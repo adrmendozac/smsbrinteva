@@ -29,23 +29,29 @@ export default function App() {
   const [balanceError, setBalanceError] = useState(false);
   const [preselectContactId, setPreselectContactId] = useState<number | null>(null);
 
-  // Fetched once on login, not per-tab: this is Vonage's account balance and
-  // per-segment SMS price, not something that changes from clicking around
-  // the admin UI. Both feed the Rail's balance stat and the Composer's cost flair.
+  // Fetched on login, then polls every 60 s so the Rail balance stat and the
+  // Composer's cost flair stay current without a page reload. The interval is
+  // long enough that a Send campaign costing ~$5 will have already finished
+  // before the next poll, so the dropped balance is visible within a minute.
   useEffect(() => {
     if (!authed) return;
-    api
-      .getBalance()
-      .then((b) => {
-        setBalance(b.balance);
-        setPricePerSegment(b.pricePerSegment);
-        setBalanceError(false);
-      })
-      .catch(() => {
-        setBalance(null);
-        setPricePerSegment(null);
-        setBalanceError(true);
-      });
+    function fetch() {
+      api
+        .getBalance()
+        .then((b) => {
+          setBalance(b.balance);
+          setPricePerSegment(b.pricePerSegment);
+          setBalanceError(false);
+        })
+        .catch(() => {
+          setBalance(null);
+          setPricePerSegment(null);
+          setBalanceError(true);
+        });
+    }
+    fetch();
+    const id = setInterval(fetch, 60_000);
+    return () => clearInterval(id);
   }, [authed]);
 
   // Load the audience on login, then refresh it silently each time the compose
