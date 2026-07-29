@@ -318,7 +318,7 @@ function CampaignRow({
             a muted surface rather than crimson — it is a readout, not a
             control, and an identical crimson pill would read as clickable. */}
         {estimatedCost !== null && (
-          <span className="mr-auto inline-flex items-center justify-center rounded-full bg-[var(--surface-sunken)] px-6 py-3 text-sm font-medium tabular-nums text-[var(--text-primary)] shadow-[0_0_0_1px_var(--hairline)]">
+          <span className="mr-auto inline-flex items-center justify-center rounded-full border-[5px] border-[var(--brand)] bg-[var(--surface-sunken)] px-6 py-3 text-sm font-medium tabular-nums text-[var(--text-primary)]">
             Costo: ~${estimatedCost.toFixed(2)}
           </span>
         )}

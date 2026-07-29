@@ -210,6 +210,16 @@ deps.createSmsLead = ({ phone, name, text }) => {
   return kommo.createSmsLead({ axios, ...KOMMO_CRM, phone, name, text });
 };
 
+deps.createLeadNote = ({ leadId, text }) => {
+  if (!KOMMO_CRM.token || !KOMMO_CRM.subdomain) return Promise.resolve(null);
+  return kommoCrm.createLeadNote({ axios, subdomain: KOMMO_CRM.subdomain, token: KOMMO_CRM.token, leadId, text });
+};
+
+deps.addLeadTags = ({ leadId, tags }) => {
+  if (!KOMMO_CRM.token || !KOMMO_CRM.subdomain) return Promise.resolve(null);
+  return kommoCrm.addLeadTags({ axios, subdomain: KOMMO_CRM.subdomain, token: KOMMO_CRM.token, leadId, tags });
+};
+
 // Kommo -> us: an agent typed a reply inside Kommo. Deliver it over SMS and mute
 // the AI for that conversation. (Kommo only webhooks manager-authored messages,
 // so there is no client echo to filter.)
@@ -314,6 +324,28 @@ app.get('/api/kommo/pipelines', requireAuth, async (req, res) => {
   const pipelines = await kommoCrm.getPipelines(KOMMO_CRM_DEPS);
   if (!pipelines) return res.status(502).json({ error: 'Failed to fetch pipelines from Kommo' });
   res.json({ pipelines });
+});
+
+// POST /api/kommo/leads/:id/notes — create a text note on a lead.
+// Body: { text }
+app.post('/api/kommo/leads/:id/notes', requireAuth, async (req, res) => {
+  const { text } = req.body;
+  if (!text) return res.status(400).json({ error: 'text required' });
+  const ok = await kommoCrm.createLeadNote({ ...KOMMO_CRM_DEPS, leadId: req.params.id, text });
+  if (!ok) return res.status(502).json({ error: 'Failed to create note in Kommo' });
+  res.json({ ok: true });
+});
+
+// POST /api/kommo/leads/:id/tags — add tags to a lead (merges with existing).
+// Body: { tags: ["tag1", "tag2"] }
+app.post('/api/kommo/leads/:id/tags', requireAuth, async (req, res) => {
+  const { tags } = req.body;
+  if (!tags || !Array.isArray(tags) || tags.length === 0) {
+    return res.status(400).json({ error: 'tags array required' });
+  }
+  const ok = await kommoCrm.addLeadTags({ ...KOMMO_CRM_DEPS, leadId: req.params.id, tags });
+  if (!ok) return res.status(502).json({ error: 'Failed to add tags in Kommo' });
+  res.json({ ok: true });
 });
 
 // PATCH /api/kommo/leads/:id/pipeline — move a lead to a different stage.
