@@ -22,9 +22,6 @@ type Result = { kind: "ok"; text: string } | { kind: "err"; text: string } | nul
 
 // Vonage caps an MMS image caption at 300 characters.
 const MMS_CAPTION_MAX = 300;
-// Past this a plain-text send concatenates into multiple carrier-billed SMS
-// segments — capped to keep a long body from silently tripling the send cost.
-const SMS_SEGMENT_MAX = 160;
 
 function kb(bytes: number) {
   return `${Math.round(bytes / 1024)} KB`;
@@ -103,7 +100,6 @@ export function Composer({
   }, [suggestedName, nameTouched]);
   const segments = smsSegments(sanitized.length);
   const overCaption = media !== null && sanitized.length > MMS_CAPTION_MAX;
-  const overOneSegment = media === null && sanitized.length > SMS_SEGMENT_MAX;
   const approxRecipients =
     selectedIds.size + csvPhones.length + manualPhones.length;
 
@@ -201,7 +197,6 @@ export function Composer({
     approxRecipients > 0 &&
     !uploading &&
     !overCaption &&
-    !overOneSegment &&
     (mode === "now" || scheduledInstant !== null);
 
   async function send() {
@@ -305,10 +300,10 @@ export function Composer({
         <Field
           label={media ? "Mensaje (pie de foto)" : "Mensaje"}
           hint={
-            <span className={overCaption || overOneSegment ? "text-[var(--status-failed)]" : undefined}>
+            <span className={overCaption ? "text-[var(--status-failed)]" : undefined}>
               {media
                 ? `${sanitized.length}/${MMS_CAPTION_MAX} car. · MMS`
-                : `${sanitized.length}/${SMS_SEGMENT_MAX} car. · ${segments} SMS`}
+                : `${sanitized.length} car. · ${segments} SMS`}
             </span>
           }
         >
@@ -325,13 +320,6 @@ export function Composer({
           <p className="text-xs text-[var(--status-failed)]">
             Con imagen el mensaje es el pie de foto y no puede pasar de{" "}
             {MMS_CAPTION_MAX} caracteres. Quita la imagen o acorta el texto.
-          </p>
-        )}
-
-        {overOneSegment && (
-          <p className="text-xs text-[var(--status-failed)]">
-            El mensaje no puede pasar de {SMS_SEGMENT_MAX} caracteres (1 segmento SMS) —
-            son {segments} segmentos y cada uno se cobra por separado. Acorta el texto.
           </p>
         )}
 
