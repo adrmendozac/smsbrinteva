@@ -458,11 +458,33 @@ app.listen(PORT, '127.0.0.1', () => {
 
 // A crash nobody caught is exactly the event the log table is for: the admin
 // sees it on the Registro tab instead of discovering it via a dead campaign.
-process.on('uncaughtException', (err) => {
-  console.error('uncaughtException:', err);
-  log.error('system', 'uncaughtException', { error: String((err && err.stack) || err) });
-});
-process.on('unhandledRejection', (reason) => {
-  console.error('unhandledRejection:', reason);
-  log.error('system', 'unhandledRejection', { error: String((reason && reason.stack) || reason) });
-});
+//
+// Both handlers must still end the process. Registering a listener for either
+// event *replaces* Node's default crash (since Node 15 that includes
+// unhandledRejection), so logging without exiting would leave us running on top
+// of whatever broken state threw — PM2 sees a healthy process and never
+// restarts it. Record the event, then exit non-zero so PM2 brings up a clean
+// one. Exiting is the recovery; the log row is just the evidence.
+let crashing = false;
+
+function fatal(kind, err) {
+  // A second fault while the first is still being written must not restart the
+  // sequence or delay the exit.
+  if (crashing) return;
+  crashing = true;
+
+  console.error(`${kind}:`, err);
+
+  // Never let a slow or hung DB write keep a broken process alive: whichever
+  // settles first wins. unref() so the timer itself can't hold the loop open if
+  // the write finishes fast. log.error swallows its own failures, so the race
+  // always settles.
+  const deadline = new Promise(resolve => setTimeout(resolve, 2000).unref());
+  Promise.race([
+    log.error('system', kind, { error: String((err && err.stack) || err) }),
+    deadline
+  ]).finally(() => process.exit(1));
+}
+
+process.on('uncaughtException', (err) => fatal('uncaughtException', err));
+process.on('unhandledRejection', (reason) => fatal('unhandledRejection', reason));
