@@ -3,7 +3,7 @@ import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { isAuthenticated, clearToken } from "./lib/auth";
 import { api } from "./lib/api";
-import { countContacts, type Campaign, type Contact, type ContactCounts, type LogEntry } from "./types";
+import { countContacts, type Campaign, type Contact, type ContactCounts } from "./types";
 import { Login } from "./components/Login";
 import { Header, type Tab } from "./components/Header";
 import { Composer } from "./components/Composer";
@@ -21,7 +21,6 @@ export default function App() {
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [refreshSignal, setRefreshSignal] = useState(0);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const [contactCounts, setContactCounts] = useState<ContactCounts | null>(null);
   const [balance, setBalance] = useState<string | null>(null);
   const [pricePerSegment, setPricePerSegment] = useState<string | null>(null);
@@ -116,7 +115,6 @@ export default function App() {
             tab={tab}
             contacts={audience}
             campaigns={campaigns}
-            logEntries={logEntries}
             contactCounts={contactCounts}
             balance={balance}
             balanceError={balanceError}
@@ -160,7 +158,7 @@ export default function App() {
               />
             </div>
             <div className={cn(tab !== "logs" && "hidden")}>
-              <Logs onLoaded={setLogEntries} />
+              <Logs />
             </div>
           </div>
         </div>
@@ -185,7 +183,6 @@ function Rail({
   tab,
   contacts,
   campaigns,
-  logEntries,
   contactCounts,
   balance,
   balanceError,
@@ -193,7 +190,6 @@ function Rail({
   tab: Tab;
   contacts: Contact[];
   campaigns: Campaign[];
-  logEntries: LogEntry[];
   contactCounts: ContactCounts | null;
   balance: string | null;
   balanceError: boolean;
@@ -239,7 +235,7 @@ function Rail({
     compose: { eyebrow: "Envío", title: ["Escribe", "una campaña"] },
     contacts: { eyebrow: "Directorio", title: ["Tus", "contactos"] },
     history: { eyebrow: "Registro", title: ["Todo lo", "que enviaste"] },
-    logs: { eyebrow: "Bitácora", title: ["La vida", "del servidor"] },
+    logs: { eyebrow: "logs", title: ["Registro de", "logs"] },
   }[tab];
 
   return (
@@ -258,16 +254,18 @@ function Rail({
       </h1>
 
       <dl className="mt-8 flex flex-wrap justify-center gap-6 sm:gap-8 md:justify-start">
-        <div>
-          <dt className="text-xs text-[var(--text-muted)]">
-            {tab === "history" ? "Campañas" : "Reciben mensajes"}
-          </dt>
-          <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-tight">
-            {tab === "history"
-              ? campaigns.length
-              : (contactCounts?.reachable ?? contacts.length)}
-          </dd>
-        </div>
+        {tab !== "logs" && (
+          <div>
+            <dt className="text-xs text-[var(--text-muted)]">
+              {tab === "history" ? "Campañas" : "Reciben mensajes"}
+            </dt>
+            <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-tight">
+              {tab === "history"
+                ? campaigns.length
+                : (contactCounts?.reachable ?? contacts.length)}
+            </dd>
+          </div>
+        )}
         {tab === "compose" && balanceError && (
           <div>
             <dt className="text-xs text-[var(--text-muted)]">Saldo Vonage</dt>
@@ -305,18 +303,10 @@ function Rail({
             </dd>
           </div>
         )}
-        {tab === "logs" && (
-          <div>
-            <dt className="text-xs text-[var(--text-muted)]">Entradas</dt>
-            <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-tight text-[var(--brand)]">
-              {logEntries.length}
-            </dd>
-          </div>
-        )}
         {/* The other half of the partition: these two sum to the active total and
             mean the same thing on Envío and on Contactos, so neither number
             depends on which tab you are looking at. */}
-        {tab !== "history" && contactCounts && (
+        {tab !== "logs" && tab !== "history" && contactCounts && (
           <div>
             <dt className="text-xs text-[var(--text-muted)]">No reciben mensajes</dt>
             <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-tight text-[var(--brand)]">

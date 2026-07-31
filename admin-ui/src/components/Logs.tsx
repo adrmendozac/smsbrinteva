@@ -47,7 +47,7 @@ function LevelPill({ level }: { level: LogLevel }) {
   );
 }
 
-export function Logs({ onLoaded }: { onLoaded?: (entries: LogEntry[]) => void }) {
+export function Logs() {
   const [entries, setEntries] = useState<LogEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -66,20 +66,19 @@ export function Logs({ onLoaded }: { onLoaded?: (entries: LogEntry[]) => void })
         category: category === "all" ? undefined : category,
         before,
       });
-      // onLoaded gets the merged list, not the new page: the rail count must
-      // reflect every entry currently on screen, paging included.
+      // Paging appends: `before` asks for rows older than the last one on
+      // screen, so the new page goes after what is already there.
       const merged = before ? [...entriesRef.current, ...page.logs] : page.logs;
       entriesRef.current = merged;
       setEntries(merged);
       setNextBefore(page.nextBefore);
-      onLoaded?.(merged);
       setError("");
     } catch {
       setError("No se pudo cargar el registro. Pulsa Actualizar para reintentar.");
     } finally {
       setLoading(false);
     }
-  }, [level, category, onLoaded]);
+  }, [level, category]);
 
   useEffect(() => {
     // A filter change restarts from the newest page.
