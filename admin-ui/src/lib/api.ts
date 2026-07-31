@@ -6,6 +6,7 @@ import type {
   CreateCampaignPayload,
   UploadedMedia,
   MediaConflict,
+  LogPage,
 } from "../types";
 
 export class ApiError extends Error {
@@ -128,4 +129,13 @@ export const api = {
       pricePerSegment: string;
       currency: string;
     }>("/api/account/balance"),
+  // Newest-first page of the server event log. `before` pages older rows.
+  getLogs: (params: { level?: string; category?: string; before?: number } = {}) => {
+    const qs = new URLSearchParams();
+    if (params.level) qs.set("level", params.level);
+    if (params.category) qs.set("category", params.category);
+    if (params.before) qs.set("before", String(params.before));
+    const q = qs.toString();
+    return request<LogPage>(`/api/logs${q ? `?${q}` : ""}`);
+  },
 };

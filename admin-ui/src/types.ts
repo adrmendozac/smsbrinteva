@@ -95,6 +95,25 @@ export interface ContactCounts {
   archived: number;
 }
 
+export type LogLevel = "info" | "warn" | "error";
+
+// One row of the server-side event log (GET /api/logs). `meta` is whatever
+// context the emitting path attached: ids, phones, statuses, error text.
+export interface LogEntry {
+  id: number;
+  level: LogLevel;
+  category: string;
+  message: string;
+  meta: Record<string, unknown> | null;
+  created_at: string;
+}
+
+export interface LogPage {
+  logs: LogEntry[];
+  // Id of the oldest row on this page; pass it as `before` to fetch older.
+  nextBefore: number | null;
+}
+
 // Derived in two places — App, for the rail on every tab, and Contacts as its
 // own list changes under edits — so the rule lives next to the type.
 export function countContacts(list: Contact[]): ContactCounts {

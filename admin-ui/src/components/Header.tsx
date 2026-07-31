@@ -4,6 +4,7 @@ import {
   PaperPlaneTilt,
   ClockCounterClockwise,
   AddressBook,
+  ListMagnifyingGlass,
   List,
   X,
 } from "@phosphor-icons/react";
@@ -13,7 +14,7 @@ import { useGSAP } from "@gsap/react";
 import logo from "../assets/brinteva-logo.png";
 import { cn } from "../lib/cn";
 
-export type Tab = "compose" | "history" | "contacts";
+export type Tab = "compose" | "history" | "contacts" | "logs";
 
 type IconProps = { size?: number; weight?: "light" | "bold"; "aria-hidden"?: boolean };
 
@@ -21,6 +22,7 @@ const TABS: { key: Tab; label: string; icon: ComponentType<IconProps> }[] = [
   { key: "compose", label: "Nueva campaña", icon: PaperPlaneTilt },
   { key: "contacts", label: "Contactos", icon: AddressBook },
   { key: "history", label: "Historial", icon: ClockCounterClockwise },
+  { key: "logs", label: "Registro", icon: ListMagnifyingGlass },
 ];
 
 /**

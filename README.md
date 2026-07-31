@@ -40,6 +40,7 @@ conversaciones.
 │   ├── contacts.js       #  gestor de contactos (alta/edición/archivo)
 │   ├── kommo.js          #  puente Kommo (firma X-Signature)
 │   └── voice.js          #  NCCO: llamadas entrantes → grupo VBC
+│   └── logs.js           #  bitácora estructurada (tabla `logs`)
 ├── migrations/           # .sql fechados, aplicados con scripts/apply-migration.js
 ├── scripts/
 │   ├── apply-migration.js
@@ -103,6 +104,7 @@ VOICE_RING_TIMEOUT  VOICE_FALLBACK_NUMBER
 | `broadcast_recipients` | Estado por destinatario: `pending`, `sent`, `delivered`, `failed`, `opted_out` |
 | `promotions` | Catálogo que se inyecta al prompt de la IA |
 | `consent_records` | Evidencia de consentimiento del formulario web (10DLC) |
+| `logs` | Bitácora estructurada: envíos, acuses, webhooks, auth, acciones del panel |
 
 No hay tabla `users`: el panel se protege con un PIN compartido que emite un JWT.
 
@@ -150,6 +152,7 @@ historial del shell, y es idempotente ante "la columna ya existe".
 | `GET` | `/api/campaigns/:id` | Detalle + estado por destinatario |
 | `POST` | `/api/campaigns/:id/send` | Enviar ya (motor asíncrono) |
 | `PATCH` | `/api/campaigns/:id/archive` | Archivar / restaurar |
+| `GET` | `/api/logs` | Bitácora del servidor (`level`, `category`, `before` para paginar) |
 | `GET` | `/admin/*` | Panel React (SPA) |
 
 URLs a configurar en el dashboard de Vonage: `/inbound`, `/status`,

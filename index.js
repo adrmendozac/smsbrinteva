@@ -16,6 +16,7 @@ const kommo = require('./lib/kommo');
 const kommoCrm = require('./lib/kommoCrm');
 const { sendMessage, sendImage } = require('./lib/vonage');
 const { registerVoiceRoutes } = require('./lib/voice');
+const { createLogger } = require('./lib/logs');
 
 const app = express();
 // Capture the raw request bytes so the Kommo webhook can verify X-Signature
@@ -49,13 +50,19 @@ const deps = {
 
 // ── Auth: shared PIN gate ──────────────────────────────────────────────────
 
+const log = createLogger(db);
+deps.log = log;
+
 app.post('/api/login', (req, res) => {
   const { pin } = req.body;
   if (!pin) return res.status(400).json({ error: 'PIN required' });
   if (String(pin) !== String(process.env.INBOX_PIN)) {
+    // The PIN itself must never reach the log table.
+    log.warn('auth', 'Intento de login con PIN incorrecto', { ip: req.ip });
     return res.status(401).json({ error: 'Invalid PIN' });
   }
   const token = jwt.sign({ role: 'agent' }, process.env.JWT_SECRET, { expiresIn: '12h' });
+  log.info('auth', 'Login exitoso');
   res.json({ token });
 });
 
@@ -67,9 +74,30 @@ function requireAuth(req, res, next) {
     jwt.verify(token, process.env.JWT_SECRET);
     next();
   } catch {
+    log.warn('auth', 'Request con token inválido o expirado', { path: req.path });
     res.status(401).json({ error: 'Invalid or expired token' });
   }
 }
+
+// ── Logs: browsable event timeline for the admin panel ────────────────────
+// Written by lib/logs.js from every instrumented path; this route is the
+// read side. `before` pages older entries (keyset by id), level/category
+// filter the timeline.
+
+app.get('/api/logs', requireAuth, async (req, res) => {
+  try {
+    const page = await log.list({
+      level: req.query.level,
+      category: req.query.category,
+      before: req.query.before,
+      limit: req.query.limit
+    });
+    res.json(page);
+  } catch (err) {
+    console.error('GET /api/logs error:', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ── Helper: send SMS + log to DB ──────────────────────────────────────────
 // Lives here (not in a lib/ module) because both the Kommo agent-reply relay
@@ -125,6 +153,7 @@ async function mirrorInboundToKommo({ phone, name, text, msgid }) {
     if (res.status >= 300) console.error('[kommo] inbound import failed', res.status, JSON.stringify(res.data));
   } catch (err) {
     console.error('[kommo] mirrorInbound error:', err.message);
+    log.warn('kommo', 'Fallo al reflejar SMS entrante hacia Kommo', { phone, error: err.message });
   }
 }
 
@@ -142,11 +171,13 @@ async function mirrorOutboundToKommo({ phone, text, mediaUrl = null, msgid, send
     });
     if (res.status >= 300) {
       console.error('[kommo] outbound import failed', res.status, JSON.stringify(res.data));
+      log.warn('kommo', 'Fallo al reflejar SMS saliente hacia Kommo', { phone, status: res.status });
       return null;
     }
     return (res.data && res.data.new_message && res.data.new_message.msgid) || null;
   } catch (err) {
     console.error('[kommo] mirrorOutbound error:', err.message);
+    log.warn('kommo', 'Error reflejando SMS saliente hacia Kommo', { phone, error: err.message });
     return null;
   }
 }
@@ -220,6 +251,32 @@ deps.addLeadTags = ({ leadId, tags }) => {
   return kommoCrm.addLeadTags({ axios, subdomain: KOMMO_CRM.subdomain, token: KOMMO_CRM.token, leadId, tags });
 };
 
+// DISABLED pending review — campaign lead-tagging, unrelated to the logs work
+// it shipped alongside. Blocker: kommoCrm.searchLeadByPhone returns the first
+// `?query=` hit when it cannot confirm the phone (Kommo matches substrings
+// across name/phone/email), so a campaign would tag arbitrary leads, one per
+// recipient, with every failure swallowed. Re-enable together with the call in
+// lib/sendEngine.js once the search confirms the phone or returns null.
+//
+// Search for a lead by phone, tag it. Returns true/false; never throws.
+// Cache is per-call-site — pass a Map to reuse lookups across a batch.
+// deps.tagLeadByPhone = async ({ phone, tags, cache }) => {
+//   if (!KOMMO_CRM.token || !KOMMO_CRM.subdomain) return false;
+//   const normalized = phone.replace(/\D/g, '');
+//   if (cache && cache.has(normalized)) {
+//     const leadId = cache.get(normalized);
+//     if (leadId) await kommoCrm.addLeadTags({ axios, subdomain: KOMMO_CRM.subdomain, token: KOMMO_CRM.token, leadId, tags }).catch(() => {});
+//     return !!leadId;
+//   }
+//   const leadId = await kommoCrm.searchLeadByPhone({ axios, subdomain: KOMMO_CRM.subdomain, token: KOMMO_CRM.token, phone: normalized });
+//   if (cache) cache.set(normalized, leadId);
+//   if (leadId) {
+//     await kommoCrm.addLeadTags({ axios, subdomain: KOMMO_CRM.subdomain, token: KOMMO_CRM.token, leadId, tags }).catch(() => {});
+//     return true;
+//   }
+//   return false;
+// };
+
 // Kommo -> us: an agent typed a reply inside Kommo. Deliver it over SMS and mute
 // the AI for that conversation. (Kommo only webhooks manager-authored messages,
 // so there is no client echo to filter.)
@@ -234,6 +291,7 @@ kommo.registerKommoRoutes(app, { env: process.env }, async (payload) => {
   }
   if ((!text && !mediaUrl) || !phone) {
     console.warn('[kommo] webhook missing text/phone/media — ignoring');
+    log.warn('kommo', 'Webhook de Kommo sin texto/teléfono/media — ignorado');
     return;
   }
 
@@ -246,6 +304,7 @@ kommo.registerKommoRoutes(app, { env: process.env }, async (payload) => {
 
   if (!contacts[0].opted_in) {
     console.log(`[kommo] agent reply skipped — contact ${phone} opted out`);
+    log.warn('kommo', 'Respuesta de vendedor omitida — contacto dado de baja', { phone });
     const kommoMsgid = m.message && m.message.id;
     if (kommoMsgid) await pushKommoDeliveryStatus(String(kommoMsgid), -1, 'Contact opted out');
     return;
@@ -269,6 +328,8 @@ kommo.registerKommoRoutes(app, { env: process.env }, async (payload) => {
   const sent = await sendSMS(phone, sanitizeForSMS(text), conversationId, 'human', mediaUrl);
   await db.execute(`UPDATE conversations SET status = 'needs_human' WHERE id = ?`, [conversationId]);
 
+  if (!sent) log.warn('kommo', 'Respuesta de vendedor no pudo enviarse por SMS', { phone, conversationId });
+
   // Remember Kommo's msgid for this relay so /status DLRs can be reported back
   // to Kommo as delivered/failed on the agent's message.
   const kommoMsgid = m.message && m.message.id;
@@ -282,6 +343,7 @@ kommo.registerKommoRoutes(app, { env: process.env }, async (payload) => {
     await pushKommoDeliveryStatus(String(kommoMsgid), -1, 'SMS send failed');
   }
   console.log(`[kommo] agent reply relayed to ${phone} (conv ${conversationId})`);
+  log.info('kommo', 'Respuesta de vendedor enviada por SMS', { phone, conversationId });
 });
 
 // ── Kommo CRM API routes (admin-facing) ──────────────────────────────────
@@ -392,4 +454,15 @@ app.get(/^\/admin(?:\/.*)?$/, (req, res) => {
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, '127.0.0.1', () => {
   console.log(`brinteva-sms running on port ${PORT}`);
+});
+
+// A crash nobody caught is exactly the event the log table is for: the admin
+// sees it on the Registro tab instead of discovering it via a dead campaign.
+process.on('uncaughtException', (err) => {
+  console.error('uncaughtException:', err);
+  log.error('system', 'uncaughtException', { error: String((err && err.stack) || err) });
+});
+process.on('unhandledRejection', (reason) => {
+  console.error('unhandledRejection:', reason);
+  log.error('system', 'unhandledRejection', { error: String((reason && reason.stack) || reason) });
 });

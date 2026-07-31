@@ -3,12 +3,13 @@ import gsap from "gsap";
 import { useGSAP } from "@gsap/react";
 import { isAuthenticated, clearToken } from "./lib/auth";
 import { api } from "./lib/api";
-import { countContacts, type Campaign, type Contact, type ContactCounts } from "./types";
+import { countContacts, type Campaign, type Contact, type ContactCounts, type LogEntry } from "./types";
 import { Login } from "./components/Login";
 import { Header, type Tab } from "./components/Header";
 import { Composer } from "./components/Composer";
 import { History } from "./components/History";
 import { Contacts } from "./components/Contacts";
+import { Logs } from "./components/Logs";
 import { Footer } from "./components/Footer";
 import { cn } from "./lib/cn";
 import { Eyebrow, Spinner } from "./components/ui";
@@ -20,6 +21,7 @@ export default function App() {
   const [loadingContacts, setLoadingContacts] = useState(true);
   const [refreshSignal, setRefreshSignal] = useState(0);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [logEntries, setLogEntries] = useState<LogEntry[]>([]);
   const [contactCounts, setContactCounts] = useState<ContactCounts | null>(null);
   const [balance, setBalance] = useState<string | null>(null);
   const [pricePerSegment, setPricePerSegment] = useState<string | null>(null);
@@ -114,6 +116,7 @@ export default function App() {
             tab={tab}
             contacts={audience}
             campaigns={campaigns}
+            logEntries={logEntries}
             contactCounts={contactCounts}
             balance={balance}
             balanceError={balanceError}
@@ -156,6 +159,9 @@ export default function App() {
                 pricePerSegment={pricePerSegment}
               />
             </div>
+            <div className={cn(tab !== "logs" && "hidden")}>
+              <Logs onLoaded={setLogEntries} />
+            </div>
           </div>
         </div>
       </main>
@@ -179,6 +185,7 @@ function Rail({
   tab,
   contacts,
   campaigns,
+  logEntries,
   contactCounts,
   balance,
   balanceError,
@@ -186,6 +193,7 @@ function Rail({
   tab: Tab;
   contacts: Contact[];
   campaigns: Campaign[];
+  logEntries: LogEntry[];
   contactCounts: ContactCounts | null;
   balance: string | null;
   balanceError: boolean;
@@ -231,6 +239,7 @@ function Rail({
     compose: { eyebrow: "Envío", title: ["Escribe", "una campaña"] },
     contacts: { eyebrow: "Directorio", title: ["Tus", "contactos"] },
     history: { eyebrow: "Registro", title: ["Todo lo", "que enviaste"] },
+    logs: { eyebrow: "Bitácora", title: ["La vida", "del servidor"] },
   }[tab];
 
   return (
@@ -293,6 +302,14 @@ function Rail({
             <dt className="text-xs text-[var(--text-muted)]">Mensajes enviados</dt>
             <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-tight text-[var(--brand)]">
               {sent}
+            </dd>
+          </div>
+        )}
+        {tab === "logs" && (
+          <div>
+            <dt className="text-xs text-[var(--text-muted)]">Entradas</dt>
+            <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-tight text-[var(--brand)]">
+              {logEntries.length}
             </dd>
           </div>
         )}
