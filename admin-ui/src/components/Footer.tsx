@@ -1,8 +1,8 @@
-import { ChatCircleDots } from "@phosphor-icons/react";
+import { ChatCircleDots, ListMagnifyingGlass } from "@phosphor-icons/react";
 import logo from "../assets/brinteva-logo.png";
-import { ButtonLink } from "./ui";
+import { Button, ButtonLink } from "./ui";
 
-export function Footer() {
+export function Footer({ onOpenLogs }: { onOpenLogs: () => void }) {
   const year = new Date().getFullYear();
 
   return (
@@ -25,10 +25,17 @@ export function Footer() {
           </div>
         </div>
 
-        <ButtonLink href="https://nicollbrintevaworlds.kommo.com/chats/">
-          <ChatCircleDots size={16} weight="light" aria-hidden="true" />
-          Abrir Kommo
-        </ButtonLink>
+        <div className="flex flex-wrap items-center justify-center gap-3">
+          <Button onClick={onOpenLogs}>
+            <ListMagnifyingGlass size={16} weight="light" aria-hidden="true" />
+            Ver registro
+          </Button>
+
+          <ButtonLink href="https://nicollbrintevaworlds.kommo.com/chats/">
+            <ChatCircleDots size={16} weight="light" aria-hidden="true" />
+            Abrir Kommo
+          </ButtonLink>
+        </div>
       </div>
     </footer>
   );

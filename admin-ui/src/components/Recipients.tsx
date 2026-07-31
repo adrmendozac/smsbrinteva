@@ -213,7 +213,7 @@ function Row({ recipient: r }: { recipient: Recipient }) {
       className="border-t border-[var(--border)] [content-visibility:auto] [contain-intrinsic-size:auto_37px]"
     >
       <td className="px-5 py-2 whitespace-nowrap">
-        <span className="font-mono tabular-nums">{formatPhone(r.phone)}</span>
+        <span className="font-phone tabular-nums">{formatPhone(r.phone)}</span>
         {r.name && (
           <span className="ml-2 text-xs text-[var(--text-muted)]">{r.name}</span>
         )}

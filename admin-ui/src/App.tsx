@@ -166,7 +166,7 @@ export default function App() {
         </div>
       </main>
 
-      <Footer />
+      <Footer onOpenLogs={() => setTab("logs")} />
     </div>
   );
 }

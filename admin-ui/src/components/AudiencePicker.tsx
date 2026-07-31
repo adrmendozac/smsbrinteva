@@ -226,7 +226,7 @@ export function AudiencePicker({
                     >
                       {checked && "✓"}
                     </span>
-                    <span className="font-mono">{c.phone}</span>
+                    <span className="font-phone">{c.phone}</span>
                     {c.name && (
                       <span className="truncate text-[var(--text-muted)]">
                         {c.name}
@@ -353,7 +353,7 @@ function ContactSearch({
                   <span className="shrink-0 rounded border border-[var(--border)] px-1 text-xs text-[var(--text-muted)]">
                     {alreadyAdded ? "✓" : "+"}
                   </span>
-                  <span className="font-mono text-xs">{c.phone}</span>
+                  <span className="font-phone text-xs">{c.phone}</span>
                   {c.name && (
                     <span className="truncate text-[var(--text-muted)]">
                       {c.name}
@@ -434,7 +434,7 @@ function ManualEntry({
             key={p}
             className="inline-flex items-center gap-1 rounded-full bg-[var(--brand)] py-1 pl-2.5 pr-1 text-sm text-white"
           >
-            <span className="font-mono">{formatUsPhone(p)}</span>
+            <span className="font-phone">{formatUsPhone(p)}</span>
             <button
               type="button"
               onClick={(e) => {

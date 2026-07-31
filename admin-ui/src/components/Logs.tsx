@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { ArrowClockwise } from "@phosphor-icons/react";
+import { ArrowClockwiseIcon } from "@phosphor-icons/react";
 import type { LogEntry, LogLevel } from "../types";
 import { api } from "../lib/api";
 import { cn } from "../lib/cn";
@@ -143,7 +143,7 @@ export function Logs({ onLoaded }: { onLoaded?: (entries: LogEntry[]) => void })
         </div>
 
         <Button variant="ghost" onClick={() => load()} type="button">
-          <ArrowClockwise size={16} weight="light" aria-hidden="true" /> Actualizar
+          <ArrowClockwiseIcon size={16} weight="light" aria-hidden="true" /> Actualizar
         </Button>
       </div>
 

@@ -382,7 +382,7 @@ function AddContactForm({
           if (e.key === "Enter") submit();
         }}
         placeholder="Teléfono"
-        className={cn(inputClass, "font-mono")}
+        className={cn(inputClass, "font-phone")}
       />
       {error && <p className="text-xs text-[var(--status-failed)]">{error}</p>}
       <div className="flex items-center justify-end gap-2 pt-0.5">
@@ -622,7 +622,7 @@ function ContactRow({
                 if (e.key === "Enter") save();
               }}
               placeholder="Teléfono"
-              className={cn(inputClass, "font-mono")}
+              className={cn(inputClass, "font-phone")}
             />
             {error && (
               <p className="text-xs text-[var(--status-failed)]">{error}</p>
@@ -663,7 +663,7 @@ function ContactRow({
                     </span>
                   )}
                 </div>
-                <span className="mt-0.5 block font-mono text-sm text-[var(--text-muted)]">
+                <span className="mt-0.5 block font-phone text-sm text-[var(--text-muted)]">
                   {formatUsPhone(contact.phone)}
                 </span>
               </div>
