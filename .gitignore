@@ -16,3 +16,6 @@ node_modules/
 # Build outputs we do NOT deploy (the admin-ui build in public/admin IS committed on purpose)
 admin-ui/dist/
 inbox-ui/dist/
+
+# Isolated feature worktrees
+.worktrees/
