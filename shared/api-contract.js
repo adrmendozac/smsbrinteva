@@ -222,6 +222,11 @@ const contactName = schema.string({ maxLength: 255 });
 const httpUrl = schema.string({ minLength: 1, maxLength: 2048, format: 'http-url' });
 const campaignStatus = schema.enum(['draft', 'scheduled', 'sending', 'completed', 'failed']);
 const recipientStatus = schema.enum(['pending', 'sent', 'delivered', 'failed', 'opted_out']);
+const logLevel = schema.enum(['info', 'warn', 'error']);
+const logCategory = schema.enum([
+  'send', 'dlr', 'inbound', 'kommo', 'voice',
+  'auth', 'campaign', 'contact', 'media', 'system',
+]);
 
 const contact = schema.object({
   id: positiveInteger,
@@ -260,6 +265,15 @@ const recipient = schema.object({
   vonage_message_id: schema.nullable(schema.string({ maxLength: 255 })),
   error: schema.nullable(schema.string({ maxLength: 1000 })),
   sent_at: schema.nullable(schema.isoDateTime()),
+});
+
+const logEntry = schema.object({
+  id: positiveInteger,
+  level: logLevel,
+  category: logCategory,
+  message: schema.string({ minLength: 1, maxLength: 500 }),
+  meta: schema.nullable(schema.object({}, { allowUnknown: true })),
+  created_at: schema.isoDateTime(),
 });
 
 const contracts = Object.freeze({
@@ -313,6 +327,45 @@ const contracts = Object.freeze({
     ok: schema.boolean(),
     id: positiveInteger,
     archived_at: schema.nullable(schema.isoDateTime()),
+  }),
+  suggestRequest: schema.object({
+    prompt: schema.string({ minLength: 1, maxLength: 4000 }),
+  }),
+  suggestResponse: schema.object({
+    text: schema.string({ minLength: 1 }),
+  }),
+  uploadedMedia: schema.object({
+    url: httpUrl,
+    filename: schema.string({ minLength: 1, maxLength: 255 }),
+    bytes: schema.integer({ min: 0 }),
+    originalBytes: schema.integer({ min: 0 }),
+    format: schema.enum(['jpg', 'gif']),
+  }),
+  mediaConflict: schema.object({
+    error: schema.string({ minLength: 1, maxLength: 500 }),
+    conflict: schema.literal(true),
+    filename: schema.string({ minLength: 1, maxLength: 255 }),
+    existingUrl: httpUrl,
+  }),
+  mediaConflictQuery: schema.object({
+    onConflict: schema.optional(schema.enum(['copy', 'replace'])),
+  }),
+  accountBalanceResponse: schema.object({
+    balance: schema.string({ minLength: 1, maxLength: 64 }),
+    autoReload: schema.boolean(),
+    pricePerSegment: schema.nullable(schema.string({ maxLength: 64 })),
+    currency: schema.nullable(schema.string({ maxLength: 16 })),
+  }),
+  logEntry,
+  logPage: schema.object({
+    logs: schema.array(logEntry),
+    nextBefore: schema.nullable(positiveInteger),
+  }),
+  logsQuery: schema.object({
+    level: schema.optional(logLevel),
+    category: schema.optional(logCategory),
+    before: schema.optional(idString),
+    limit: schema.optional(idString),
   }),
 });
 

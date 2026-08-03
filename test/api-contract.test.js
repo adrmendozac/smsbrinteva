@@ -3,6 +3,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { schema, validate, contracts } = require('../shared/api-contract');
+const { CATEGORIES } = require('../lib/logs');
 
 function assertValid(contract, value) {
   assert.deepEqual(validate(contract, value), { ok: true, value });
@@ -350,4 +351,124 @@ test('validates campaign response envelopes', () => {
   });
   assertValid(contracts.archiveCampaignResponse, { ok: true, id: 7, archived_at: null });
   assertInvalid(contracts.campaignCreatedResponse, { id: 0, total: -1 }, ['id', 'total']);
+});
+
+test('validates suggestion request and response contracts', () => {
+  assertValid(contracts.suggestRequest, { prompt: 'Una promoción para Italia' });
+  assertValid(contracts.suggestResponse, { text: 'Brinteva Worlds: Viaja a Italia' });
+  assertInvalid(contracts.suggestRequest, { prompt: '' }, ['prompt']);
+  assertInvalid(contracts.suggestResponse, { text: '' }, ['text']);
+});
+
+test('validates uploaded media and rejects non-HTTP URLs', () => {
+  for (const format of ['jpg', 'gif']) {
+    assertValid(contracts.uploadedMedia, {
+      url: `https://sms.brintevaworlds.com/media/trip.${format}`,
+      filename: `trip.${format}`,
+      bytes: 120000,
+      originalBytes: 240000,
+      format,
+    });
+  }
+  assertInvalid(contracts.uploadedMedia, {
+    url: 'data:image/png;base64,abc',
+    filename: 'trip.jpg',
+    bytes: 1,
+    originalBytes: 1,
+    format: 'jpg',
+  }, ['url']);
+  assertInvalid(contracts.uploadedMedia, {
+    url: 'https://example.com/trip.png',
+    filename: 'trip.png',
+    bytes: -1,
+    originalBytes: 1,
+    format: 'png',
+  }, ['bytes', 'format']);
+});
+
+test('validates media conflict payloads and query options', () => {
+  const conflict = {
+    error: 'Ya existe',
+    conflict: true,
+    filename: 'trip.jpg',
+    existingUrl: 'https://sms.brintevaworlds.com/media/trip.jpg',
+  };
+  assertValid(contracts.mediaConflict, conflict);
+  assertValid(contracts.mediaConflictQuery, {});
+  assertValid(contracts.mediaConflictQuery, { onConflict: 'copy' });
+  assertValid(contracts.mediaConflictQuery, { onConflict: 'replace' });
+  assertInvalid(contracts.mediaConflict, { ...conflict, conflict: false }, ['conflict']);
+  assertInvalid(contracts.mediaConflict, { ...conflict, existingUrl: 'ftp://example.com/trip.jpg' }, ['existingUrl']);
+  assertInvalid(contracts.mediaConflictQuery, { onConflict: 'overwrite' }, ['onConflict']);
+});
+
+test('validates account balance with nullable pricing', () => {
+  assertValid(contracts.accountBalanceResponse, {
+    balance: '25.50',
+    autoReload: false,
+    pricePerSegment: '0.01200',
+    currency: 'USD',
+  });
+  assertValid(contracts.accountBalanceResponse, {
+    balance: '25.50',
+    autoReload: false,
+    pricePerSegment: null,
+    currency: null,
+  });
+  assertInvalid(contracts.accountBalanceResponse, {
+    balance: 25.5,
+    autoReload: false,
+    pricePerSegment: null,
+    currency: null,
+  }, ['balance']);
+});
+
+const logCategories = [
+  'send', 'dlr', 'inbound', 'kommo', 'voice',
+  'auth', 'campaign', 'contact', 'media', 'system',
+];
+
+test('log contract categories mirror the backend logger', () => {
+  assert.deepEqual(logCategories, CATEGORIES);
+});
+
+test('validates log entries, metadata, and pages', () => {
+  for (const level of ['info', 'warn', 'error']) {
+    assertValid(contracts.logEntry, {
+      id: 1,
+      level,
+      category: 'campaign',
+      message: 'Campaña creada',
+      meta: { broadcastId: 7, nested: { ok: true } },
+      created_at: '2026-08-03T12:00:00.000Z',
+    });
+  }
+  const entry = {
+    id: 2,
+    level: 'info',
+    category: 'system',
+    message: 'Servidor iniciado',
+    meta: null,
+    created_at: '2026-08-03T12:00:00Z',
+  };
+  assertValid(contracts.logPage, { logs: [entry], nextBefore: 1 });
+  assertValid(contracts.logPage, { logs: [], nextBefore: null });
+  assertInvalid(contracts.logEntry, { ...entry, level: 'debug' }, ['level']);
+  assertInvalid(contracts.logEntry, { ...entry, category: 'other' }, ['category']);
+});
+
+test('validates raw log query strings and category enums', () => {
+  assertValid(contracts.logsQuery, {});
+  for (const category of logCategories) {
+    assertValid(contracts.logsQuery, { category });
+  }
+  assertValid(contracts.logsQuery, {
+    level: 'warn',
+    category: 'send',
+    before: '100',
+    limit: '50',
+  });
+  assertInvalid(contracts.logsQuery, { level: 'debug' }, ['level']);
+  assertInvalid(contracts.logsQuery, { before: 100 }, ['before']);
+  assertInvalid(contracts.logsQuery, { limit: '0' }, ['limit']);
 });
