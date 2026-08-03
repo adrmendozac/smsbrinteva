@@ -236,3 +236,118 @@ test('validates archive request', () => {
   assertInvalid(contracts.archiveRequest, {}, ['archived']);
   assertInvalid(contracts.archiveRequest, { archived: 'true' }, ['archived']);
 });
+
+const campaignStatuses = ['draft', 'scheduled', 'sending', 'completed', 'failed'];
+const recipientStatuses = ['pending', 'sent', 'delivered', 'failed', 'opted_out'];
+
+function campaignValue(overrides = {}) {
+  return {
+    id: 7,
+    name: 'Promo Italia',
+    body: 'Brinteva Worlds: Viaja con nosotros',
+    media_url: null,
+    status: 'draft',
+    scheduled_at: null,
+    sent_count: 0,
+    failed_count: 0,
+    total_count: 2,
+    created_by: 'admin',
+    created_at: '2026-08-03T12:00:00.000Z',
+    archived_at: null,
+    ...overrides,
+  };
+}
+
+function recipientValue(overrides = {}) {
+  return {
+    id: 11,
+    phone: '19256658003',
+    name: 'Nicoll',
+    status: 'pending',
+    vonage_message_id: null,
+    error: null,
+    sent_at: null,
+    ...overrides,
+  };
+}
+
+test('validates campaign statuses and nullable response fields', () => {
+  for (const status of campaignStatuses) {
+    assertValid(contracts.campaign, campaignValue({ status }));
+  }
+  assertValid(contracts.campaign, campaignValue({
+    media_url: 'https://sms.brintevaworlds.com/media/trip.jpg',
+    scheduled_at: '2026-08-04T12:00:00Z',
+    created_by: null,
+    archived_at: '2026-08-05T12:00:00Z',
+  }));
+  assertValid(contracts.campaignList, [campaignValue()]);
+  assertInvalid(contracts.campaign, campaignValue({ status: 'paused' }), ['status']);
+  assertInvalid(contracts.campaign, campaignValue({ media_url: 'ftp://example.com/trip.jpg' }), ['media_url']);
+});
+
+test('validates recipient counts and recipient response fields', () => {
+  for (const status of recipientStatuses) {
+    assertValid(contracts.recipientCount, { status, n: 1 });
+    assertValid(contracts.recipient, recipientValue({ status }));
+  }
+  assertValid(contracts.recipient, recipientValue({
+    name: null,
+    vonage_message_id: 'message-123',
+    error: 'carrier rejected message',
+    sent_at: '2026-08-03T12:30:00Z',
+  }));
+  assertInvalid(contracts.recipientCount, { status: 'unknown', n: 1 }, ['status']);
+  assertInvalid(contracts.recipient, recipientValue({ sent_at: 'yesterday' }), ['sent_at']);
+});
+
+test('validates nested campaign details', () => {
+  const detail = {
+    ...campaignValue(),
+    recipientCounts: [{ status: 'pending', n: 1 }],
+    recipients: [recipientValue()],
+  };
+  assertValid(contracts.campaignDetail, detail);
+  assertInvalid(contracts.campaignDetail, {
+    ...detail,
+    recipients: [recipientValue({ id: 0 })],
+  }, ['recipients[0].id']);
+});
+
+test('validates campaign creation requests without coercing contact IDs', () => {
+  const request = {
+    name: 'Promo Italia',
+    body: 'Brinteva Worlds: Viaja con nosotros',
+    contactIds: [1, 2],
+    phones: ['19256658003'],
+    scheduledAt: null,
+    mediaUrl: null,
+  };
+  assertValid(contracts.createCampaignRequest, request);
+  assertValid(contracts.createCampaignRequest, {
+    ...request,
+    scheduledAt: '2026-08-04T12:00:00.000Z',
+    mediaUrl: 'https://sms.brintevaworlds.com/media/trip.jpg',
+  });
+
+  const scalar = validate(contracts.createCampaignRequest, { ...request, contactIds: 7 });
+  assert.deepEqual(scalar, {
+    ok: false,
+    issues: [{ path: 'contactIds', message: 'Expected array' }],
+  });
+  assertInvalid(contracts.createCampaignRequest, { ...request, contactIds: ['1'] }, ['contactIds[0]']);
+  assertInvalid(contracts.createCampaignRequest, { ...request, phones: [''] }, ['phones[0]']);
+  assertInvalid(contracts.createCampaignRequest, { ...request, mediaUrl: 'data:image/png;base64,abc' }, ['mediaUrl']);
+});
+
+test('validates campaign response envelopes', () => {
+  assertValid(contracts.campaignCreatedResponse, { id: 7, total: 2 });
+  assertValid(contracts.okResponse, { ok: true });
+  assertValid(contracts.archiveCampaignResponse, {
+    ok: true,
+    id: 7,
+    archived_at: '2026-08-03T12:00:00Z',
+  });
+  assertValid(contracts.archiveCampaignResponse, { ok: true, id: 7, archived_at: null });
+  assertInvalid(contracts.campaignCreatedResponse, { id: 0, total: -1 }, ['id', 'total']);
+});

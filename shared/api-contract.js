@@ -73,6 +73,15 @@ function validateIsoDateTime(value) {
     && date.getUTCMilliseconds() === Number(fraction.padEnd(3, '0'));
 }
 
+function validateHttpUrl(value) {
+  try {
+    const url = new URL(value);
+    return url.protocol === 'http:' || url.protocol === 'https:';
+  } catch {
+    return false;
+  }
+}
+
 function inspect(contract, value, path, context = {}) {
   switch (contract.kind) {
     case 'unknown':
@@ -90,6 +99,9 @@ function inspect(contract, value, path, context = {}) {
       if (contract.pattern !== undefined) {
         contract.pattern.lastIndex = 0;
         if (!contract.pattern.test(value)) issues.push(issue(path, 'String does not match required pattern'));
+      }
+      if (contract.format === 'http-url' && !validateHttpUrl(value)) {
+        issues.push(issue(path, 'Expected an HTTP(S) URL'));
       }
       return issues;
     }
@@ -207,6 +219,9 @@ const positiveInteger = schema.integer({ min: 1 });
 const idString = schema.string({ pattern: /^[1-9]\d*$/ });
 const phoneString = schema.string({ minLength: 1, maxLength: 32 });
 const contactName = schema.string({ maxLength: 255 });
+const httpUrl = schema.string({ minLength: 1, maxLength: 2048, format: 'http-url' });
+const campaignStatus = schema.enum(['draft', 'scheduled', 'sending', 'completed', 'failed']);
+const recipientStatus = schema.enum(['pending', 'sent', 'delivered', 'failed', 'opted_out']);
 
 const contact = schema.object({
   id: positiveInteger,
@@ -214,6 +229,37 @@ const contact = schema.object({
   name: schema.nullable(contactName),
   opted_in: schema.optional(schema.boolean()),
   archived_at: schema.optional(schema.nullable(schema.isoDateTime())),
+});
+
+const campaignFields = {
+  id: positiveInteger,
+  name: schema.string({ minLength: 1, maxLength: 200 }),
+  body: schema.string({ minLength: 1, maxLength: 4000 }),
+  media_url: schema.nullable(httpUrl),
+  status: campaignStatus,
+  scheduled_at: schema.nullable(schema.isoDateTime()),
+  sent_count: schema.integer({ min: 0 }),
+  failed_count: schema.integer({ min: 0 }),
+  total_count: schema.integer({ min: 0 }),
+  created_by: schema.nullable(schema.string({ maxLength: 255 })),
+  created_at: schema.isoDateTime(),
+  archived_at: schema.nullable(schema.isoDateTime()),
+};
+const campaign = schema.object(campaignFields);
+
+const recipientCount = schema.object({
+  status: recipientStatus,
+  n: schema.integer({ min: 0 }),
+});
+
+const recipient = schema.object({
+  id: positiveInteger,
+  phone: phoneString,
+  name: schema.nullable(contactName),
+  status: recipientStatus,
+  vonage_message_id: schema.nullable(schema.string({ maxLength: 255 })),
+  error: schema.nullable(schema.string({ maxLength: 1000 })),
+  sent_at: schema.nullable(schema.isoDateTime()),
 });
 
 const contracts = Object.freeze({
@@ -238,6 +284,35 @@ const contracts = Object.freeze({
   }, { minProperties: 1 }),
   archiveRequest: schema.object({
     archived: schema.boolean(),
+  }),
+  campaign,
+  campaignList: schema.array(campaign),
+  recipientCount,
+  recipient,
+  campaignDetail: schema.object({
+    ...campaignFields,
+    recipientCounts: schema.array(recipientCount),
+    recipients: schema.array(recipient),
+  }),
+  createCampaignRequest: schema.object({
+    name: schema.string({ minLength: 1, maxLength: 200 }),
+    body: schema.string({ minLength: 1, maxLength: 4000 }),
+    contactIds: schema.array(positiveInteger),
+    phones: schema.array(phoneString),
+    scheduledAt: schema.nullable(schema.isoDateTime()),
+    mediaUrl: schema.nullable(httpUrl),
+  }),
+  campaignCreatedResponse: schema.object({
+    id: positiveInteger,
+    total: schema.integer({ min: 0 }),
+  }),
+  okResponse: schema.object({
+    ok: schema.boolean(),
+  }),
+  archiveCampaignResponse: schema.object({
+    ok: schema.boolean(),
+    id: positiveInteger,
+    archived_at: schema.nullable(schema.isoDateTime()),
   }),
 });
 
