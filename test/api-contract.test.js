@@ -16,6 +16,33 @@ function assertInvalid(contract, value, paths = []) {
   return result;
 }
 
+test('schema builders use the shared contract shape and clone variant arrays', () => {
+  assert.deepEqual(schema.string({ minLength: 1 }), { kind: 'string', minLength: 1 });
+  assert.deepEqual(schema.number(), { kind: 'number' });
+  assert.deepEqual(schema.integer(), { kind: 'integer' });
+  assert.deepEqual(schema.boolean(), { kind: 'boolean' });
+  assert.deepEqual(schema.unknown(), { kind: 'unknown' });
+  assert.deepEqual(schema.literal('ready'), { kind: 'literal', value: 'ready' });
+  assert.deepEqual(schema.isoDateTime(), { kind: 'isoDateTime' });
+
+  const item = schema.string();
+  assert.deepEqual(schema.array(item, { minItems: 1 }), { kind: 'array', item, minItems: 1 });
+  const fields = { name: schema.string() };
+  assert.deepEqual(schema.object(fields, { allowUnknown: true }), { kind: 'object', fields, allowUnknown: true });
+  assert.deepEqual(schema.optional(item), { kind: 'optional', inner: item });
+  assert.deepEqual(schema.nullable(item), { kind: 'nullable', inner: item });
+
+  const values = ['draft'];
+  const enumContract = schema.enum(values);
+  values.push('sent');
+  assert.deepEqual(enumContract, { kind: 'enum', values: ['draft'] });
+
+  const variants = [schema.string()];
+  const unionContract = schema.union(variants);
+  variants.push(schema.number());
+  assert.deepEqual(unionContract, { kind: 'union', variants: [{ kind: 'string' }] });
+});
+
 test('validates string type, length, and pattern without coercion', () => {
   const contract = schema.string({ minLength: 2, maxLength: 4, pattern: /^[A-Z]+$/ });
 
@@ -36,6 +63,8 @@ test('validates finite numbers, integer type, and numeric bounds', () => {
   assertInvalid(number, Infinity, ['']);
   assertInvalid(number, '2', ['']);
   assertValid(schema.integer({ min: -1, max: 2 }), 2);
+  assertInvalid(schema.integer({ min: 1 }), 0, ['']);
+  assertInvalid(schema.integer({ max: 2 }), 3, ['']);
   assertInvalid(schema.integer(), 1.5, ['']);
 });
 
@@ -52,6 +81,11 @@ test('validates booleans, literals, enums, and unions without coercion', () => {
   assertValid(contract, 'all');
   const result = assertInvalid(contract, false, ['']);
   assert.match(result.issues[0].message, /integer/i);
+});
+
+test('union stops after the first passing variant', () => {
+  const contract = schema.union([schema.literal('ready'), { kind: 'malformed' }]);
+  assertValid(contract, 'ready');
 });
 
 test('validates arrays, item paths, and item-count bounds', () => {
@@ -97,7 +131,7 @@ test('supports optional object properties and nullable values', () => {
   assertInvalid(schema.optional(schema.string()), undefined, ['']);
 });
 
-test('returns the exact value for an object with an absent optional property', () => {
+test('validates a strict object and preserves its value', () => {
   assert.deepEqual(
     validate(
       schema.object({ name: schema.string({ minLength: 1 }), active: schema.optional(schema.boolean()) }),

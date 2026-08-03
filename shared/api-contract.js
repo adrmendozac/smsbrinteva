@@ -2,43 +2,43 @@
 
 const schema = {
   string(options = {}) {
-    return { type: 'string', ...options };
+    return { kind: 'string', ...options };
   },
   number(options = {}) {
-    return { type: 'number', ...options };
+    return { kind: 'number', ...options };
   },
   integer(options = {}) {
-    return { type: 'integer', ...options };
+    return { kind: 'integer', ...options };
   },
   boolean() {
-    return { type: 'boolean' };
+    return { kind: 'boolean' };
   },
   unknown() {
-    return { type: 'unknown' };
+    return { kind: 'unknown' };
   },
   literal(value) {
-    return { type: 'literal', value };
+    return { kind: 'literal', value };
   },
   enum(values) {
-    return { type: 'enum', values };
+    return { kind: 'enum', values: [...values] };
   },
   union(variants) {
-    return { type: 'union', variants };
+    return { kind: 'union', variants: [...variants] };
   },
   isoDateTime() {
-    return { type: 'isoDateTime' };
+    return { kind: 'isoDateTime' };
   },
-  array(items, options = {}) {
-    return { type: 'array', items, ...options };
+  array(item, options = {}) {
+    return { kind: 'array', item, ...options };
   },
-  object(properties, options = {}) {
-    return { type: 'object', properties, ...options };
+  object(fields, options = {}) {
+    return { kind: 'object', fields, ...options };
   },
   optional(inner) {
-    return { type: 'optional', inner };
+    return { kind: 'optional', inner };
   },
   nullable(inner) {
-    return { type: 'nullable', inner };
+    return { kind: 'nullable', inner };
   },
 };
 
@@ -74,7 +74,7 @@ function validateIsoDateTime(value) {
 }
 
 function inspect(contract, value, path, context = {}) {
-  switch (contract.type) {
+  switch (contract.kind) {
     case 'unknown':
       return [];
 
@@ -96,11 +96,11 @@ function inspect(contract, value, path, context = {}) {
 
     case 'number':
     case 'integer': {
-      const isValidType = contract.type === 'integer'
+      const isValidType = contract.kind === 'integer'
         ? Number.isInteger(value)
         : typeof value === 'number' && Number.isFinite(value);
       if (!isValidType) {
-        return [issue(path, contract.type === 'integer' ? 'Expected integer' : 'Expected finite number')];
+        return [issue(path, contract.kind === 'integer' ? 'Expected integer' : 'Expected finite number')];
       }
       const issues = [];
       if (contract.min !== undefined && value < contract.min) {
@@ -125,8 +125,13 @@ function inspect(contract, value, path, context = {}) {
 
     case 'union': {
       if (contract.variants.length === 0) return [issue(path, 'Expected a union value')];
-      const variants = contract.variants.map((variant) => inspect(variant, value, path, context));
-      return variants.some((issues) => issues.length === 0) ? [] : variants[0];
+      let firstIssues;
+      for (const variant of contract.variants) {
+        const issues = inspect(variant, value, path, context);
+        if (issues.length === 0) return [];
+        if (firstIssues === undefined) firstIssues = issues;
+      }
+      return firstIssues;
     }
 
     case 'isoDateTime':
@@ -142,7 +147,7 @@ function inspect(contract, value, path, context = {}) {
         issues.push(issue(path, `Expected at most ${contract.maxItems} items`));
       }
       value.forEach((item, index) => {
-        issues.push(...inspect(contract.items, item, itemPath(path, index), context));
+        issues.push(...inspect(contract.item, item, itemPath(path, index), context));
       });
       return issues;
     }
@@ -154,17 +159,17 @@ function inspect(contract, value, path, context = {}) {
 
       const issues = [];
       let presentProperties = 0;
-      for (const [name, propertyContract] of Object.entries(contract.properties)) {
+      for (const [name, propertyContract] of Object.entries(contract.fields)) {
         const hasProperty = Object.prototype.hasOwnProperty.call(value, name);
         if (!hasProperty) {
-          if (propertyContract.type !== 'optional') {
+          if (propertyContract.kind !== 'optional') {
             issues.push(issue(propertyPath(path, name), 'Required property is missing'));
           }
           continue;
         }
 
         presentProperties += 1;
-        const inner = propertyContract.type === 'optional' ? propertyContract.inner : propertyContract;
+        const inner = propertyContract.kind === 'optional' ? propertyContract.inner : propertyContract;
         issues.push(...inspect(inner, value[name], propertyPath(path, name), { objectProperty: true }));
       }
 
@@ -174,7 +179,7 @@ function inspect(contract, value, path, context = {}) {
 
       if (!contract.allowUnknown) {
         for (const name of Object.keys(value)) {
-          if (!Object.prototype.hasOwnProperty.call(contract.properties, name)) {
+          if (!Object.prototype.hasOwnProperty.call(contract.fields, name)) {
             issues.push(issue(propertyPath(path, name), 'Unknown property'));
           }
         }
@@ -189,7 +194,7 @@ function inspect(contract, value, path, context = {}) {
       return value === null ? [] : inspect(contract.inner, value, path, context);
 
     default:
-      throw new TypeError(`Unknown schema type: ${String(contract.type)}`);
+      throw new TypeError(`Unknown schema kind: ${String(contract.kind)}`);
   }
 }
 
