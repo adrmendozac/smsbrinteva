@@ -2,7 +2,7 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { schema, validate } = require('../shared/api-contract');
+const { schema, validate, contracts } = require('../shared/api-contract');
 
 function assertValid(contract, value) {
   assert.deepEqual(validate(contract, value), { ok: true, value });
@@ -186,4 +186,53 @@ test('accumulates independent nested issues with precise paths', () => {
   }, ['contacts[0].id', 'contacts[0].profile.name', 'contacts[0].extra', 'contacts[1].id']);
 
   assert.equal(result.issues.length, 4);
+});
+
+test('validates login request and response contracts', () => {
+  assertValid(contracts.loginRequest, { pin: '1234' });
+  assertValid(contracts.loginResponse, { token: 'signed.jwt.token' });
+  assertInvalid(contracts.loginRequest, { pin: '' }, ['pin']);
+  assertInvalid(contracts.loginResponse, { token: '' }, ['token']);
+  assertInvalid(contracts.loginRequest, { pin: 1234 }, ['pin']);
+});
+
+test('validates raw Express id parameters without coercion', () => {
+  assertValid(contracts.idParams, { id: '42' });
+  assertInvalid(contracts.idParams, { id: '0' }, ['id']);
+  assertInvalid(contracts.idParams, { id: 42 }, ['id']);
+});
+
+test('validates contact response shapes and lists', () => {
+  const contact = {
+    id: 1,
+    phone: '19256658003',
+    name: 'Nicoll',
+    opted_in: true,
+    archived_at: null,
+  };
+
+  assertValid(contracts.contact, contact);
+  assertValid(contracts.contactList, [contact, {
+    id: 2,
+    phone: '19252628150',
+    name: null,
+  }]);
+  assertInvalid(contracts.contact, { ...contact, id: 0 }, ['id']);
+  assertInvalid(contracts.contact, { ...contact, archived_at: '2026-08-03' }, ['archived_at']);
+});
+
+test('validates create and update contact requests', () => {
+  assertValid(contracts.createContactRequest, { name: 'Nicoll', phone: '19256658003' });
+  assertValid(contracts.updateContactRequest, { name: '' });
+  assertValid(contracts.updateContactRequest, { phone: '19252628150' });
+  assertInvalid(contracts.createContactRequest, { name: 'Nicoll', phone: '' }, ['phone']);
+  assertInvalid(contracts.updateContactRequest, {}, ['']);
+  assertInvalid(contracts.updateContactRequest, { nickname: 'N' }, ['', 'nickname']);
+});
+
+test('validates archive request', () => {
+  assertValid(contracts.archiveRequest, { archived: true });
+  assertValid(contracts.archiveRequest, { archived: false });
+  assertInvalid(contracts.archiveRequest, {}, ['archived']);
+  assertInvalid(contracts.archiveRequest, { archived: 'true' }, ['archived']);
 });

@@ -203,4 +203,42 @@ function validate(contract, value) {
   return issues.length === 0 ? { ok: true, value } : { ok: false, issues };
 }
 
-module.exports = { schema, validate };
+const positiveInteger = schema.integer({ min: 1 });
+const idString = schema.string({ pattern: /^[1-9]\d*$/ });
+const phoneString = schema.string({ minLength: 1, maxLength: 32 });
+const contactName = schema.string({ maxLength: 255 });
+
+const contact = schema.object({
+  id: positiveInteger,
+  phone: phoneString,
+  name: schema.nullable(contactName),
+  opted_in: schema.optional(schema.boolean()),
+  archived_at: schema.optional(schema.nullable(schema.isoDateTime())),
+});
+
+const contracts = Object.freeze({
+  loginRequest: schema.object({
+    pin: schema.string({ minLength: 1, maxLength: 64 }),
+  }),
+  loginResponse: schema.object({
+    token: schema.string({ minLength: 1, maxLength: 8192 }),
+  }),
+  idParams: schema.object({
+    id: idString,
+  }),
+  contact,
+  contactList: schema.array(contact),
+  createContactRequest: schema.object({
+    name: contactName,
+    phone: phoneString,
+  }),
+  updateContactRequest: schema.object({
+    name: schema.optional(contactName),
+    phone: schema.optional(phoneString),
+  }, { minProperties: 1 }),
+  archiveRequest: schema.object({
+    archived: schema.boolean(),
+  }),
+});
+
+module.exports = { schema, validate, contracts };
