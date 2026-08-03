@@ -2,6 +2,8 @@
 
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const { schema, validate, contracts } = require('../shared/api-contract');
 const { CATEGORIES } = require('../lib/logs');
 
@@ -471,4 +473,17 @@ test('validates raw log query strings and category enums', () => {
   assertInvalid(contracts.logsQuery, { level: 'debug' }, ['level']);
   assertInvalid(contracts.logsQuery, { before: 100 }, ['before']);
   assertInvalid(contracts.logsQuery, { limit: '0' }, ['limit']);
+});
+
+test('runtime contract names match the TypeScript declaration', () => {
+  const source = fs.readFileSync(
+    path.join(__dirname, '..', 'shared', 'api-contract.d.ts'),
+    'utf8',
+  );
+  const block = source.match(/export type ApiContractName =([\s\S]*?);/);
+  assert.ok(block, 'ApiContractName declaration is missing');
+  const declared = [...block[1].matchAll(/'([^']+)'/g)]
+    .map((match) => match[1])
+    .sort();
+  assert.deepEqual(declared, Object.keys(contracts).sort());
 });
