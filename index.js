@@ -4,7 +4,8 @@ const express = require('express');
 const axios = require('axios');
 const mysql = require('mysql2/promise');
 const jwt = require('jsonwebtoken');
-const { sanitizeForSMS } = require('./lib/sms');
+const { sanitizeForSMS, MMS_CAPTION_MAX } = require('./lib/sms');
+const { createHostedMessage, buildLinkSms, registerHostedRoutes } = require('./lib/hosted');
 const { registerCampaignRoutes } = require('./lib/campaigns');
 const { registerContactRoutes } = require('./lib/contacts');
 const { registerMediaRoutes } = require('./lib/media');
@@ -22,8 +23,13 @@ const app = express();
 // Capture the raw request bytes so the Kommo webhook can verify X-Signature
 // (HMAC of the exact body) even though the body is also JSON-parsed for handlers.
 const captureRaw = (req, res, buf) => { req.rawBody = buf; };
-app.use(express.json({ verify: captureRaw }));
-app.use(express.urlencoded({ extended: true, verify: captureRaw }));
+// 256kb, up from the 100kb default: a seller pasting a 30-day itinerary into
+// Kommo can exceed 100kb, and the webhook would be rejected before any handler
+// saw it. The verify hook still captures the exact bytes for the signature
+// check — raising the ceiling does not change what gets hashed.
+const REQUEST_LIMIT = '256kb';
+app.use(express.json({ limit: REQUEST_LIMIT, verify: captureRaw }));
+app.use(express.urlencoded({ extended: true, limit: REQUEST_LIMIT, verify: captureRaw }));
 
 // Admin campaign-launcher SPA, served same-origin at /admin (built to public/admin).
 app.use('/admin', express.static(path.join(__dirname, 'public/admin')));
@@ -104,6 +110,11 @@ app.get('/api/logs', requireAuth, async (req, res) => {
 // below and lib/webhooks.js / lib/public.js need it, and it owns the
 // `messages` insert that all three paths share.
 
+// Always resolves — never throws — to { ok, messageId, dbId } on success or
+// { ok: false, error, dbId } on failure. The failure branch carries the reason
+// because callers relay it to the agent in Kommo: a bare "SMS send failed" is
+// what left the oversized-itinerary rejections undiagnosed for days. Check
+// `.ok`, not truthiness — the failure value is an object too.
 async function sendSMS(to, text, conversationId, sentBy = 'ai', mediaUrl = null) {
   try {
     const { messageId } = mediaUrl
@@ -117,15 +128,21 @@ async function sendSMS(to, text, conversationId, sentBy = 'ai', mediaUrl = null)
     );
 
     console.log(`Sent to ${to} [${sentBy}]: ${text}`);
-    return { messageId: messageId || null, dbId: ins.insertId };
+    return { ok: true, messageId: messageId || null, dbId: ins.insertId };
   } catch (err) {
-    console.error('sendSMS error:', err.message);
-    await db.execute(
-      `INSERT INTO messages (conversation_id, direction, body, status, sent_by)
-       VALUES (?, 'outbound', ?, 'failed', ?)`,
-      [conversationId, text, sentBy]
-    ).catch(e => console.error('Failed to log failed message:', e.message));
-    return null;
+    console.error(`sendSMS error (${String(text ?? '').length} chars):`, err.message);
+    let dbId = null;
+    try {
+      const [ins] = await db.execute(
+        `INSERT INTO messages (conversation_id, direction, body, status, sent_by)
+         VALUES (?, 'outbound', ?, 'failed', ?)`,
+        [conversationId, text, sentBy]
+      );
+      dbId = ins.insertId;
+    } catch (e) {
+      console.error('Failed to log failed message:', e.message);
+    }
+    return { ok: false, error: err.message, dbId };
   }
 }
 deps.sendSMS = sendSMS;
@@ -325,23 +342,98 @@ kommo.registerKommoRoutes(app, { env: process.env }, async (payload) => {
     conversationId = convRows[0].id;
   }
 
-  const sent = await sendSMS(phone, sanitizeForSMS(text), conversationId, 'human', mediaUrl);
+  // Sanitize before deciding anything: it strips accents and emoji, so it
+  // determines both whether there is anything left to send and how long the
+  // outgoing SMS actually is.
+  const clean = sanitizeForSMS(text);
+  const kommoMsgid = m.message && m.message.id;
+
+  // One exit for every failure, so the agent always gets the real reason in
+  // Kommo instead of a generic string, and the Registro row records why.
+  const failRelay = async (reason) => {
+    console.warn(`[kommo] agent reply NOT sent to ${phone}: ${reason}`);
+    log.warn('kommo', 'Respuesta de vendedor no pudo enviarse por SMS',
+      { phone, conversationId, reason, length: clean.length });
+    if (kommoMsgid) await pushKommoDeliveryStatus(String(kommoMsgid), -1, String(reason).slice(0, 200));
+  };
+
+  // The guard at the top of this handler tested the RAW text. An all-emoji or
+  // all-accent reply survives it and only collapses to '' here — that used to
+  // reach Vonage as an empty SMS.
+  if (!clean && !mediaUrl) {
+    await failRelay('El mensaje quedó vacío al convertirlo a texto SMS (solo emojis o símbolos)');
+    return;
+  }
+
+  // Long replies go out as a one-segment link to a hosted page: Vonage rejects
+  // text over 3200 characters outright, and an image's caption is capped far
+  // lower still. Under the threshold nothing changes.
+  const threshold = Number(process.env.HOSTED_LINK_THRESHOLD) || 2000;
+  const outgoingMax = mediaUrl ? MMS_CAPTION_MAX : threshold;
+  let outgoing = clean;
+  let hosted = null;
+
+  if (clean.length > outgoingMax) {
+    try {
+      // Store the RAW text, not `clean`: the page is HTML and can render the
+      // accents and ñ that GSM-7 cannot.
+      hosted = await createHostedMessage(deps, {
+        body: text, contactId, conversationId, source: 'kommo',
+      });
+      outgoing = buildLinkSms(process.env, hosted.title, hosted.code);
+    } catch (err) {
+      await failRelay(`No se pudo alojar el mensaje largo: ${err.message}`);
+      return;
+    }
+  }
+
+  const sent = await sendSMS(phone, outgoing, conversationId, 'human', mediaUrl);
   await db.execute(`UPDATE conversations SET status = 'needs_human' WHERE id = ?`, [conversationId]);
 
-  if (!sent) log.warn('kommo', 'Respuesta de vendedor no pudo enviarse por SMS', { phone, conversationId });
+  if (!sent.ok) {
+    await failRelay(sent.error || 'SMS send failed');
+    return;
+  }
 
   // Remember Kommo's msgid for this relay so /status DLRs can be reported back
   // to Kommo as delivered/failed on the agent's message.
-  const kommoMsgid = m.message && m.message.id;
-  if (sent && kommoMsgid) {
+  if (kommoMsgid) {
     await db.execute(
       `UPDATE messages SET kommo_msgid = ? WHERE id = ?`,
       [String(kommoMsgid), sent.dbId]
     ).catch(e => console.error('[kommo] kommo_msgid save error:', e.message));
-  } else if (!sent && kommoMsgid) {
-    // SMS never left Vonage — tell Kommo immediately so the agent sees the failure.
-    await pushKommoDeliveryStatus(String(kommoMsgid), -1, 'SMS send failed');
   }
+
+  if (hosted) {
+    // Join the hosted page to the SMS row that carried its link.
+    db.execute(`UPDATE hosted_messages SET message_id = ? WHERE id = ?`, [sent.dbId, hosted.id])
+      .catch(e => console.error('[hosted] message link error:', e.message));
+
+    // Post a notice into the same Kommo thread the seller is looking at.
+    // Without it they see their full itinerary and a delivered receipt, and
+    // have no way to know the customer received a link instead of the text —
+    // which reads like the system silently truncated their work.
+    //
+    // This rides the same import path campaign blasts use: `silent: true`, so
+    // Kommo records the message in the conversation without trying to deliver
+    // it as an SMS and without firing the agent-reply webhook back at us.
+    // `force: true` because KOMMO_MIRROR_AI gates ordinary AI mirroring, and
+    // this notice must appear whether or not the AI responder is on.
+    mirrorOutboundToKommo({
+      phone,
+      text: `Enviado como enlace (${clean.length} caracteres, máximo ${outgoingMax} por SMS).\n` +
+            `Link al itinerario: ${hosted.url}`,
+      msgid: `hosted-${hosted.id}`,
+      senderName: 'Brinteva Worlds',
+      force: true,
+    }).catch(e => console.error('[kommo] hosted notice error:', e.message));
+
+    console.log(`[kommo] agent reply hosted (${clean.length} chars) -> ${hosted.url} (conv ${conversationId})`);
+    log.info('kommo', 'Respuesta larga enviada como enlace',
+      { phone, conversationId, url: hosted.url, originalLength: clean.length });
+    return;
+  }
+
   console.log(`[kommo] agent reply relayed to ${phone} (conv ${conversationId})`);
   log.info('kommo', 'Respuesta de vendedor enviada por SMS', { phone, conversationId });
 });
@@ -434,6 +526,9 @@ app.post('/api/kommo/salesbot', requireAuth, async (req, res) => {
 // Route logic lives in lib/; index.js only assembles deps and registers it.
 
 registerPublicRoutes(app, deps);
+// Public, unauthenticated: /i/:code serves a hosted long message. The code is
+// the only credential, so the page is noindex, no-store and unframeable.
+registerHostedRoutes(app, deps);
 registerWebhookRoutes(app, deps);
 registerCampaignRoutes(app, deps, requireAuth);
 registerContactRoutes(app, deps, requireAuth);

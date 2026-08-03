@@ -41,6 +41,7 @@ conversaciones.
 │   ├── kommo.js          #  puente Kommo (firma X-Signature)
 │   └── voice.js          #  NCCO: llamadas entrantes → grupo VBC
 │   └── logs.js           #  bitácora estructurada (tabla `logs`)
+│   └── hosted.js         #  mensajes largos alojados + página `/i/:code`
 ├── migrations/           # .sql fechados, aplicados con scripts/apply-migration.js
 ├── scripts/
 │   ├── apply-migration.js
@@ -82,6 +83,12 @@ SEND_RATE_PER_SEC       # throttling del motor de envío
 DRY_RUN                 # 1 = no llama a Vonage, simula message ids
 AI_AUTOREPLY            # 1 = respuesta automática; 0 = contestan los vendedores
 
+# Mensajes largos alojados
+PUBLIC_BASE_URL         # base de los enlaces (default sms.brintevaworlds.com)
+HOSTED_LINK_THRESHOLD   # caracteres a partir de los cuales se envía enlace (2000)
+HOSTED_LINK_TTL_DAYS    # vigencia del enlace en días (90)
+UNSPLASH_ACCESS_KEY     # opcional: foto del destino. Sin llave no hay foto
+
 # Kommo
 KOMMO_ENABLED  KOMMO_SCOPE_ID  KOMMO_CHANNEL_SECRET  KOMMO_BOT_ID
 KOMMO_MIRROR_AI  KOMMO_ENFORCE_SIGNATURE
@@ -105,6 +112,7 @@ VOICE_RING_TIMEOUT  VOICE_FALLBACK_NUMBER
 | `promotions` | Catálogo que se inyecta al prompt de la IA |
 | `consent_records` | Evidencia de consentimiento del formulario web (10DLC) |
 | `logs` | Bitácora estructurada: envíos, acuses, webhooks, auth, acciones del panel |
+| `hosted_messages` | Itinerarios y textos largos servidos en `/i/:code`; vencen a los 90 días |
 
 No hay tabla `users`: el panel se protege con un PIN compartido que emite un JWT.
 
@@ -132,6 +140,7 @@ historial del shell, y es idempotente ante "la columna ya existe".
 |---|---|---|
 | `GET` | `/` · `/health` | Health check |
 | `GET` | `/privacy` · `/sms-terms` · `/consent-script` | Páginas y script de consentimiento 10DLC |
+| `GET` | `/i/:code` | Itinerario o mensaje largo alojado (404 si no existe, 410 si venció) |
 | `POST` | `/api/opt-in` | Alta desde el formulario web; graba en `consent_records` |
 | `POST` | `/inbound` | SMS entrante (Vonage) |
 | `POST` | `/status` | Acuses de entrega (Vonage) |
@@ -216,6 +225,79 @@ conteos— sin llamar a Vonage.
 
 ---
 
+## Mensajes largos (itinerarios)
+
+Vonage rechaza cualquier SMS de más de **3200 caracteres** —verificado contra la
+API el 2026-08-03: `text: cannot exceed 3200 characters for the given channel`.
+La documentación de Vonage dice 1000 y está desactualizada. Los vendedores pegan
+itinerarios de 5000 a 12 000 caracteres en Kommo, así que el relay los aloja:
+
+```
+Vendedor pega 12 103 caracteres en Kommo
+        ↓  supera HOSTED_LINK_THRESHOLD (2000)
+Se guarda en hosted_messages → código de 10 caracteres
+        ↓
+SMS de un segmento: "MARAVILLAS DE ITALIA Y PARIS: https://.../i/k7mp2q9xrt"
+```
+
+Cuesta $0.012 en vez de ~$0.95, no tiene tope de longitud, y la página muestra
+los acentos y la ñ que GSM-7 no admite (por eso se guarda el texto **crudo**, no
+el sanitizado). Por debajo del umbral no cambia nada.
+
+La URL **es** la credencial: el destinatario no tiene login. De ahí que el código
+sea impredecible (10 caracteres, ~49 bits), que la página se sirva `noindex`,
+`no-store`, `nosniff` y sin poder embeberse en un iframe, y que el enlace **venza
+a los 90 días** — los itinerarios llevan nombre del cliente, fechas de viaje y
+datos de reserva, y además los precios cambian. Vencido responde 410 con una
+página que invita a llamar.
+
+El cuerpo se escapa siempre antes de renderizarse: es texto arbitrario pegado
+por un vendedor.
+
+### Qué ve el vendedor
+
+Tras enviarse el enlace, se importa un aviso **en el mismo hilo de Kommo** que el
+vendedor está mirando:
+
+```
+Enviado como enlace (4826 caracteres, máximo 2000 por SMS).
+Link al itinerario: https://sms.brintevaworlds.com/i/m7qk3x9r2
+```
+
+Va por la misma ruta que usan las campañas (`importMessage` con `silent: true`),
+así que Kommo lo registra en la conversación sin intentar entregarlo como SMS y
+sin devolvernos el webhook de respuesta de vendedor. Sin este aviso el vendedor
+vería su itinerario completo y un acuse de entrega, sin manera de saber que el
+cliente recibió un enlace — parecería que el sistema truncó su trabajo.
+
+### Formato de itinerarios
+
+El contrato de parseo vive en `docs/hosted-itinerary-parsing.md`. **No es una
+plantilla que los vendedores deban seguir**: el parser lee línea por línea y
+acepta encabezados en español e inglés —`Día 1: BANGKOK`, `1er día:`,
+`Day 1 — Chiang Rai`, `viernes, 11 de septiembre de 2026: Roma`,
+`2026-09-11: Rome`— **sin exigir líneas en blanco entre días**, que es como
+llegan los itinerarios reales. Una línea es encabezado sólo si coincide con la
+forma completa, así que `day 1 of the conference` sigue siendo un párrafo.
+Ninguna línea con contenido se pierde nunca.
+
+El límite del cuerpo son **120 000 bytes UTF-8** (no caracteres: MySQL cuenta
+bytes y JavaScript cuenta unidades UTF-16, y una `ñ` ocupa dos bytes). Por eso
+`body` es `MEDIUMTEXT` y los límites de `express.json`/`urlencoded` son `256kb`.
+
+### Foto del destino (Unsplash)
+
+Si `UNSPLASH_ACCESS_KEY` está configurada, al crear el mensaje se busca **una
+sola vez** una foto del primer destino con confianza (`Día 1: BANGKOK` → Bangkok;
+`CIUDAD DE ORIGEN - ROMA` → Roma). La imagen **se enlaza desde Unsplash**, nunca
+se copia al VPS, conserva su parámetro `ixid`, y se acredita al fotógrafo y a
+Unsplash con los parámetros de referencia que exigen sus términos. El CSP sólo
+añade `https://images.unsplash.com` a `img-src`.
+
+Sin llave, sin resultados, con timeout o con una URL fuera de la lista blanca,
+la página se muestra igual, sin foto. Las páginas de privacidad en inglés y
+español declaran que Unsplash puede recibir la IP del visitante.
+
 ## Despliegue
 
 ```bash
@@ -251,6 +333,12 @@ Este proyecto no usa suites con mocks. Los cambios se verifican con `curl`
 real contra la base de datos real, primero con `DRY_RUN=1` y después con un
 envío a un número propio. `scripts/dlr.js` consulta los acuses de entrega
 cuando hay dudas sobre si un mensaje llegó al operador.
+
+La única excepción es `npm test` (`tests/*.test.js`, `node --test`): cubre el
+contrato de parseo de itinerarios y la capa de Unsplash con funciones puras y
+las dependencias que ya se inyectan (`deps.axios`, `deps.db`). No toca la base
+de datos ni la red, así que corre en cualquier parte; la verificación contra la
+base real sigue siendo un paso aparte.
 
 ---
 
