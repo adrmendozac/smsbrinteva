@@ -41,6 +41,10 @@ conversaciones.
 │   ├── kommo.js          #  puente Kommo (firma X-Signature)
 │   └── voice.js          #  NCCO: llamadas entrantes → grupo VBC
 │   └── logs.js           #  bitácora estructurada (tabla `logs`)
+├── shared/
+│   ├── api-contract.js   #  esquemas y validación CommonJS compartidos
+│   └── api-contract.d.ts #  tipos TypeScript inferidos por contrato
+├── test/                 # pruebas Node del contrato compartido
 ├── migrations/           # .sql fechados, aplicados con scripts/apply-migration.js
 ├── scripts/
 │   ├── apply-migration.js
@@ -157,6 +161,40 @@ historial del shell, y es idempotente ante "la columna ya existe".
 
 URLs a configurar en el dashboard de Vonage: `/inbound`, `/status`,
 `/voice/events`.
+
+### Contrato compartido del API
+
+`shared/api-contract.js` es la fuente de verdad ejecutable para las formas de
+solicitud y respuesta que usa el panel administrativo. No depende de Express ni
+del navegador: exporta constructores de esquema, `validate()` y los contratos
+nombrados de autenticación, contactos, campañas, archivos multimedia, saldo y
+logs.
+
+`shared/api-contract.d.ts` expone esos mismos contratos a TypeScript. El tipo
+del resultado se infiere a partir del contrato seleccionado, por ejemplo:
+
+```js
+const { contracts, validate } = require('./shared/api-contract');
+
+const result = validate(contracts.createCampaignRequest, req.body);
+if (!result.ok) {
+  return res.status(400).json({ error: 'Invalid request', issues: result.issues });
+}
+```
+
+La validación no convierte valores implícitamente: los parámetros `id`,
+`before` y `limit` permanecen como strings en el límite HTTP, y la capa de ruta
+los convierte después de validarlos. Los objetos rechazan campos desconocidos
+salvo que su contrato los permita expresamente.
+
+Esta primera fase instala y prueba el módulo compartido; la integración de los
+contratos en los handlers de Express se realizará por separado. Para verificar
+el contrato sin generar el panel:
+
+```bash
+npm test
+cd admin-ui && npx tsc --noEmit
+```
 
 ---
 
