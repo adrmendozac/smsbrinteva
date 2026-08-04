@@ -76,6 +76,34 @@ test('parses consecutive days with no blank lines between them', () => {
   assert.equal(d[2].place, 'BANGKOK - CHIANG RAI');
 });
 
+test('classifies an explicit same-client itinerary append and preserves its blocks', () => {
+  const body = [
+    'Día 1: ROMA', 'Llegada.',
+    '--- NUEVO ITINERARIO ---',
+    'Día 1: PARÍS', 'Llegada.', 'Día 2: LYON', 'Tren.',
+  ].join('\n');
+  const result = h.classifyItineraries(body);
+  assert.equal(result.kind, 'explicit-appended');
+  assert.equal(result.blocks.length, 2);
+  assert.equal(parse(result.blocks[0]).dayCount, 1);
+  assert.equal(parse(result.blocks[1]).dayCount, 2);
+});
+
+test('rejects an unmarked source-day reset and malformed explicit boundaries', () => {
+  assert.equal(h.classifyItineraries('Día 1: ROMA\nDía 2: PISA\nDía 1: PARÍS').kind, 'ambiguous');
+  assert.equal(h.classifyItineraries('Día 1: ROMA\n--- NUEVO ITINERARIO ---\nPendiente').kind, 'invalid-marker');
+});
+
+test('an appended itinerary renders each tour with its own Día 1', () => {
+  const html = h.renderHostedPage({
+    body: 'Día 1: ROMA\nLlegada.\n--- NUEVO ITINERARIO ---\nDía 1: PARÍS\nLlegada.',
+  });
+  assert.equal(html.match(/Día 1/g).length, 2);
+  assert.doesNotMatch(html, /NUEVO ITINERARIO/);
+  assert.match(html, /ROMA/);
+  assert.match(html, /PARÍS/);
+});
+
 test('parses days separated by blank lines', () => {
   const body = 'MI VIAJE\n\nDía 1: ROMA\n\nLlegada.\n\nDía 2: FLORENCIA\n\nTren.';
   const parsed = parse(body);
@@ -91,6 +119,525 @@ test('tolerates mixed capitalization and missing accents', () => {
 test('normalizes CRLF and lone CR line endings', () => {
   assert.equal(days('Día 1: ROMA\r\nLlegada.\r\nDía 2: PISA\r\nTren.').length, 2);
   assert.equal(days('Día 1: ROMA\rLlegada.\rDía 2: PISA\rTren.').length, 2);
+});
+
+// ── Input normalization ────────────────────────────
+// The stored body stays byte-for-byte as the seller sent it; only the parser's
+// working copy is normalized. Invisible characters are written as escapes here,
+// never as literals: a literal separator in source is unreviewable and one
+// editor round-trip can silently turn it into an ordinary space.
+
+test('normalizes the working copy to NFC without losing Unicode content', () => {
+  // macOS and Word both emit NFD: "D\u00eda" arrives as d + i + U+0301 + a.
+  const decomposed = 'Di\u0301a 1: SAO PAULO\nCafe\u0301, \u6771\u4eac, \u20ac1.250';
+  const parsed = parse(decomposed);
+  assert.equal(parsed.dayCount, 1);
+  assert.equal(parsed.sections[0].lines[0], 'Caf\u00e9, \u6771\u4eac, \u20ac1.250');
+  assert.equal(parsed.sections[0].lines[0], parsed.sections[0].lines[0].normalize('NFC'));
+});
+
+test('normalizes every supported line separator to LF', () => {
+  // CR and CRLF are the common pair; NEL, LS and PS arrive from word processors
+  // and some webmail clients. All are line boundaries, and this parser is
+  // line-based: gluing two day headings together destroys the structure.
+  for (const [name, sep] of [
+    ['CRLF', '\r\n'], ['CR', '\r'], ['NEL', '\u0085'],
+    ['LS', '\u2028'], ['PS', '\u2029'],
+  ]) {
+    const body = `D\u00eda 1: ROMA${sep}Llegada.${sep}D\u00eda 2: PISA${sep}Tren.`;
+    assert.equal(days(body).length, 2, `${name} must separate lines`);
+  }
+});
+
+test('removes unsafe control characters but keeps meaningful invisibles', () => {
+  const n = h.normalizeSellerText;
+  assert.equal(n('D\u00eda 1: ROMA\u0000\nLlegada.\tHotel'), 'D\u00eda 1: ROMA\nLlegada.\tHotel');
+
+  // Stateful bidi embeddings, overrides and isolates reorder visible text
+  // against its logical order. In itinerary prose that is a spoofing
+  // primitive, not writing.
+  assert.equal(n('ROMA\u202eAMOR\u202c'), 'ROMAAMOR');
+  assert.equal(n('a\u2066b\u2069c'), 'abc');
+  assert.equal(n('a\u200bb\u00adc\ufeffd'), 'abcd');
+
+  // ZWJ/ZWNJ join emoji sequences and are load-bearing in Arabic, Persian and
+  // Indic scripts; LRM/RLM are directional marks that carry meaning in
+  // mixed-direction text. Neither group is a stateful control.
+  for (const keep of ['\u200c', '\u200d', '\u200e', '\u200f']) {
+    assert.ok(n(`a${keep}b`).includes(keep), `must preserve ${JSON.stringify(keep)}`);
+  }
+
+  // The family emoji is a ZWJ sequence: strip the joiner and it breaks into
+  // three separate glyphs.
+  const rich = '\u{1f468}\u200d\u{1f469}\u200d\u{1f467} \u0627\u0644\u0639\u0631\u0628\u064a\u0629 \u201cx\u201d \u20ac1,50 \u2014';
+  assert.equal(n(rich), rich, 'emoji, non-Latin scripts, quotes and currency survive');
+});
+
+// ── Seller-wrapper grammar ──────────────────────────────────────────────────
+// Anchored phrase-family matching, not a flat sentence list. Every case here
+// must match the WHOLE line (or whole prefix, for the delivery clause): the
+// presence of the word "itinerario" is never sufficient on its own.
+
+test('matches every Spanish delivery family, singular and plural voice', () => {
+  for (const line of [
+    'Este es su itinerario', 'Esta es su itinerario', 'Aquí está su itinerario',
+    'Aquí tiene su itinerario', 'Le comparto su itinerario', 'Te comparto tu itinerario',
+    'Les compartimos el itinerario', 'Le envío su itinerario', 'Les enviamos el itinerario',
+    'Le adjunto su itinerario', 'Les adjuntamos el itinerario',
+    'Le hago llegar su itinerario', 'Les hacemos llegar el itinerario',
+    'Aquí encontrará su itinerario', 'Aquí encontrarán el itinerario',
+    'A continuación encontrará el itinerario', 'Encontrará su itinerario',
+    'Este es su programa de viaje', 'Le comparto los detalles de su viaje',
+  ]) {
+    assert.ok(h.matchDeliveryClause(line), `should match: ${line}`);
+  }
+});
+
+test('matches every English delivery family', () => {
+  for (const line of [
+    'This is your itinerary', 'Here is your itinerary', 'Attached is your itinerary',
+    'I am sharing your itinerary', "I'm sharing your itinerary",
+    'We are sending your itinerary', "We're sending the itinerary",
+    'I am sharing your itinerary for your trip',
+    'You will find your itinerary', "You'll find the itinerary",
+    'Please find your itinerary below', 'Below you will find the itinerary',
+    'This is the travel itinerary', 'Here is your travel itinerary',
+  ]) {
+    assert.ok(h.matchDeliveryClause(line), `should match: ${line}`);
+  }
+});
+
+test('delivery clause matching is accent-insensitive and case-insensitive', () => {
+  assert.ok(h.matchDeliveryClause('ESTE ES SU ITINERARIO'));
+  assert.ok(h.matchDeliveryClause('aqui esta su itinerario'), 'missing accents');
+  assert.ok(h.matchDeliveryClause('AQUÍ ESTÁ SU ITINERARIO'), 'accented and uppercase');
+  assert.ok(h.matchDeliveryClause('Le   comparto   su   itinerario'), 'repeated whitespace');
+});
+
+test('accepts the documented terminal punctuation, rejects the rest', () => {
+  for (const p of ['.', ',', ';', ':', '!', '—', '-']) {
+    assert.ok(h.matchDeliveryClause(`Le comparto su itinerario${p}`), `should accept terminal ${p}`);
+  }
+  assert.equal(h.matchDeliveryClause('Le comparto su itinerario?'), false, 'rejects "?"');
+  assert.equal(h.matchDeliveryClause('Le comparto su itinerario...'), false, 'rejects ellipsis');
+  assert.ok(h.matchDeliveryClause('¡Le comparto su itinerario!'), 'paired leading ¡ with trailing !');
+  assert.equal(h.matchDeliveryClause('¡Le comparto su itinerario'), false, 'unpaired leading ¡ is rejected');
+});
+
+test('rejects trip-specific modifiers, prices, dates, and instructions', () => {
+  for (const line of [
+    'Le comparto el itinerario de aniversario para Ana y Luis',
+    'Le comparto el itinerario con el precio final',
+    'El itinerario incluye vuelos y hotel',
+    'Revisar el itinerario antes de emitir',
+    'Itinerary price: $3,400',
+    'Call me if the itinerary needs changes',
+    'Este es el itinerario: sujeto a disponibilidad',
+    'Le comparto su itinerario para el viaje a Cancún',
+  ]) {
+    assert.equal(h.matchDeliveryClause(line), false, `should NOT match: ${line}`);
+  }
+});
+
+test('recognizes greetings with accented, apostrophed, hyphenated, and non-Latin names', () => {
+  for (const line of [
+    'Hola', 'Hola Ana', 'Buen día', 'Buenos días, Ana', 'Buenas tardes',
+    'Estimado cliente', 'Estimada Ana', 'Estimada María José',
+    "Estimada O'Neil", 'Estimada Pérez-Ruiz', 'Estimado Sr. Müller',
+    'Hello', 'Hello Ana', 'Good morning', 'Good afternoon, Ana',
+    'Dear customer', 'Dear Ana', 'Hello 李雷', 'Estimado 王芳',
+  ]) {
+    assert.ok(h.matchGreeting(line), `should be a greeting: ${line}`);
+  }
+});
+
+test('rejects greeting-like lines that are not a bounded greeting', () => {
+  for (const line of [
+    'Holanda es un país precioso', 'Hola, aquí van los precios: $3,400',
+    'Dear Sir or Madam, please review the attached quote at http://example.com',
+    'Hola ' + 'x'.repeat(90),
+  ]) {
+    assert.equal(h.matchGreeting(line), false, `should NOT be a greeting: ${line}`);
+  }
+});
+
+test('classifies a bounded courtesy line only in the reviewed set', () => {
+  for (const line of [
+    'Espero que se encuentre bien', 'Esperamos que se encuentre bien',
+    'Espero que estés bien', 'I hope you are well', 'We hope you are well.',
+  ]) {
+    const wrapper = h.matchSellerWrapper([line, 'Le comparto su itinerario:', 'Día 1: ROMA']);
+    assert.equal(wrapper, null, 'a courtesy line alone (no greeting) is not a wrapper start');
+  }
+});
+
+test('matchSellerWrapper consumes exactly the wrapper lines it recognizes', () => {
+  const one = h.matchSellerWrapper(['Le comparto su itinerario:', 'Día 1: BANGKOK']);
+  assert.equal(one.consumed, 1);
+  assert.equal(one.display, 'Le comparto su itinerario:');
+
+  const two = h.matchSellerWrapper(['Hola Ana,', 'Le comparto su itinerario:', 'Día 1: ROMA']);
+  assert.equal(two.consumed, 2);
+  assert.equal(two.display, 'Hola Ana,\nLe comparto su itinerario:');
+
+  const three = h.matchSellerWrapper([
+    'Buenos días, Sra. O\'Connor,', 'Espero que se encuentre bien.',
+    'Le comparto su itinerario:', 'Día 1: MADRID',
+  ]);
+  assert.equal(three.consumed, 3);
+  assert.equal(three.display, "Buenos días, Sra. O'Connor,\nEspero que se encuentre bien.\nLe comparto su itinerario:");
+
+  const combined = h.matchSellerWrapper(['Hola Ana, le comparto su itinerario:', 'Día 1: BANGKOK']);
+  assert.equal(combined.consumed, 1);
+  assert.equal(combined.display, 'Hola Ana, le comparto su itinerario:');
+
+  assert.equal(h.matchSellerWrapper(['Viaje de aniversario para Ana y Luis', 'Día 1: ROMA']), null);
+  assert.equal(h.matchSellerWrapper(['Hola Ana', 'Día 1: ROMA']), null, 'greeting alone is not a wrapper');
+});
+
+// ── Boundary-first parsing: parseBody() gains `preamble` ───────────────────
+// The wrapper grammar from the previous block is exercised in isolation.
+// These tests wire it into parseBody() around the first recognized day.
+
+test('no leading content: parseBody behaves exactly as before', () => {
+  const parsed = parse('Día 1: BANGKOK\nLlegada.');
+  assert.equal(parsed.preamble, null);
+  assert.equal(parsed.title, 'BANGKOK');
+  assert.equal(parsed.dayCount, 1);
+});
+
+test('a suppressible wrapper alone becomes preamble; the day supplies the title', () => {
+  const parsed = parse('Le comparto su itinerario:\nDía 1: BANGKOK\nLlegada.');
+  assert.equal(parsed.preamble, 'Le comparto su itinerario:');
+  assert.equal(parsed.title, 'BANGKOK');
+  assert.equal(parsed.dayCount, 1);
+});
+
+test('meaningful leading content is kept as the title, never classified as a wrapper', () => {
+  const parsed = parse('Viaje de aniversario para Ana y Luis\nDía 1: ROMA\nLlegada.');
+  assert.equal(parsed.preamble, null);
+  assert.equal(parsed.title, 'Viaje de aniversario para Ana y Luis');
+  assert.equal(parsed.dayCount, 1);
+});
+
+test('wrapper plus a meaningful title: the wrapper is suppressed, the title survives', () => {
+  const parsed = parse('Le comparto su itinerario:\nMARAVILLAS DE ITALIA\nDía 1: ROMA\nLlegada.');
+  assert.equal(parsed.preamble, 'Le comparto su itinerario:');
+  assert.equal(parsed.title, 'MARAVILLAS DE ITALIA');
+  assert.equal(parsed.dayCount, 1);
+});
+
+test('multi-line wrapper plus a title', () => {
+  const body = 'Hola Ana,\nLe comparto su itinerario:\nMARAVILLAS DE ITALIA\nDía 1: ROMA\nLlegada.';
+  const parsed = parse(body);
+  assert.equal(parsed.preamble, 'Hola Ana,\nLe comparto su itinerario:');
+  assert.equal(parsed.title, 'MARAVILLAS DE ITALIA');
+  assert.equal(parsed.dayCount, 1);
+});
+
+test('unknown leading prose is preserved as an ordinary text section', () => {
+  const parsed = parse('ENCABEZADO\nNota introductoria.\nDía 1: ROMA\nLlegada.');
+  assert.equal(parsed.preamble, null);
+  assert.equal(parsed.title, 'ENCABEZADO');
+  const html = h.renderHostedPage({ body: 'ENCABEZADO\nNota introductoria.\nDía 1: ROMA\nLlegada.' });
+  assert.match(html, /Nota introductoria\./);
+});
+
+test('a greeting is classified only when paired with a delivery clause', () => {
+  const parsed = parse('Hola Ana\nDía 1: ROMA\nLlegada.');
+  assert.equal(parsed.preamble, null, 'a lone greeting is not suppressible');
+  assert.equal(parsed.title, 'Hola Ana');
+  assert.equal(parsed.dayCount, 1);
+});
+
+test('recognizes wrappers before Spanish and English day headings', () => {
+  const es = parse('Le comparto su itinerario:\nDía 1: BANGKOK\nLlegada.');
+  assert.equal(es.preamble, 'Le comparto su itinerario:');
+
+  const en = parse('Please find your itinerary below\nDay 1: London\nArrival.');
+  assert.equal(en.preamble, 'Please find your itinerary below');
+  assert.equal(en.title, 'London');
+});
+
+test('a single combined greeting-plus-delivery line splits correctly', () => {
+  const parsed = parse('Hola Ana, le comparto su itinerario:\nDía 1: BANGKOK\nLlegada.');
+  assert.equal(parsed.preamble, 'Hola Ana, le comparto su itinerario:');
+  assert.equal(parsed.title, 'BANGKOK');
+  assert.equal(parsed.dayCount, 1);
+});
+
+test('a combined greeting may contain its own comma before the delivery clause', () => {
+  for (const [body, preamble, title] of [
+    ['Buenos días, Ana, le comparto su itinerario:\nDía 1: ROMA\nLlegada.',
+      'Buenos días, Ana, le comparto su itinerario:', 'ROMA'],
+    ['Good morning, Ana, please find your itinerary below:\nDay 1: London\nArrival.',
+      'Good morning, Ana, please find your itinerary below:', 'London'],
+  ]) {
+    const parsed = parse(body);
+    assert.equal(parsed.preamble, preamble);
+    assert.equal(parsed.title, title);
+    assert.equal(parsed.dayCount, 1);
+  }
+});
+
+// ── Bounded inline wrappers ─────────────────────────────────────────────────
+// "Hola Ana, le comparto su itinerario: Día 1: BANGKOK" — the day heading and
+// its wrapper share one line. A split is valid only when BOTH independently
+// validate: the prefix against the complete wrapper grammar, the suffix
+// against matchDay(). That double validation, not the terminator character
+// itself, is what keeps this from corrupting a hyphenated place name.
+
+test('splits a Spanish inline wrapper at the colon before the day heading', () => {
+  const parsed = parse('Le comparto su itinerario: Día 1: BANGKOK\nLlegada.');
+  assert.equal(parsed.preamble, 'Le comparto su itinerario:');
+  assert.equal(parsed.title, 'BANGKOK');
+  assert.equal(parsed.dayCount, 1);
+});
+
+test('splits an English inline wrapper', () => {
+  const parsed = parse('Please find your itinerary below: Day 1: London\nArrival.');
+  assert.equal(parsed.preamble, 'Please find your itinerary below:');
+  assert.equal(parsed.title, 'London');
+  assert.equal(parsed.dayCount, 1);
+});
+
+test('splits a greeting-prefixed inline wrapper', () => {
+  const parsed = parse('Hola Ana, le comparto su itinerario: Día 1: BANGKOK\nLlegada.');
+  assert.equal(parsed.preamble, 'Hola Ana, le comparto su itinerario:');
+  assert.equal(parsed.title, 'BANGKOK');
+  assert.equal(parsed.dayCount, 1);
+});
+
+test('splits at a dash or em-dash terminator, not just a colon', () => {
+  const dash = parse('Le comparto su itinerario - Día 1: Madrid\nLlegada.');
+  assert.equal(dash.preamble, 'Le comparto su itinerario -');
+  assert.equal(dash.title, 'Madrid');
+
+  const emdash = parse('Le comparto su itinerario — Día 1: Madrid\nLlegada.');
+  assert.equal(emdash.preamble, 'Le comparto su itinerario —');
+  assert.equal(emdash.title, 'Madrid');
+});
+
+test('does not split when the suffix is not a valid day heading', () => {
+  const parsed = parse('Le comparto su itinerario: pendiente de confirmación');
+  assert.equal(parsed.preamble, null);
+  assert.equal(parsed.title, 'Le comparto su itinerario: pendiente de confirmación');
+  assert.equal(parsed.dayCount, 0);
+});
+
+test('does not split when the prefix is meaningful text, not a wrapper', () => {
+  const parsed = parse('Viaje de Ana: Día 1: ROMA\nLlegada.');
+  assert.equal(parsed.preamble, null);
+  assert.equal(parsed.title, 'Viaje de Ana: Día 1: ROMA');
+});
+
+test('does not split at a period — only :, —, or - are inline terminators', () => {
+  const parsed = parse('Le comparto su itinerario. Día 1: ROMA\nLlegada.');
+  assert.equal(parsed.preamble, null);
+  assert.equal(parsed.title, 'Le comparto su itinerario. Día 1: ROMA');
+});
+
+test('evaluates many colons right to left and still finds the valid split', () => {
+  // The day heading itself supplies one of the colons; the correct split is
+  // the wrapper's own terminator, several colons to the left of it.
+  const parsed = parse('Le comparto su itinerario: Día 1: A: B: C: D: E\nLlegada.');
+  assert.equal(parsed.preamble, 'Le comparto su itinerario:');
+  assert.equal(parsed.dayCount, 1);
+});
+
+test('caps the number of terminator candidates it evaluates', () => {
+  // The wrapper's own colon is the only valid split point. Padding the DAY
+  // side with 8 more colons (harmless — matchDay() only looks at the first
+  // separator in a line, so they just become trailing place text) pushes the
+  // wrapper's colon to 9th-from-the-right, one past the evaluated bound. The
+  // line is correctly left unsplit rather than rescanned without bound.
+  const padded = 'Le comparto su itinerario: Día 1: A: B: C: D: E: F: G: H';
+  assert.equal(h.matchDay('Día 1: A: B: C: D: E: F: G: H').place, 'A: B: C: D: E: F: G: H',
+    'sanity check: the padding is valid place text, not itself a parsing failure');
+  assert.equal(h.splitInlineWrapper(padded), null,
+    "the wrapper's own colon is 9th-from-the-right and out of the evaluated bound");
+});
+
+test('bounds the inline prefix to 500 characters', () => {
+  const long = 'Le comparto su itinerario: ' + 'x'.repeat(500) + ': Día 1: ROMA';
+  assert.equal(h.splitInlineWrapper(long), null);
+});
+
+test('the day parsed from an inline split is identical to parsing it standalone', () => {
+  const inline = parse('Le comparto su itinerario: Día 1: BANGKOK\nLlegada.');
+  const standalone = parse('Día 1: BANGKOK\nLlegada.');
+  assert.deepEqual(inline.sections, standalone.sections);
+});
+
+// ── Preservation and rendering safety across every wrapper shape ───────────
+
+test('line accounting holds for standalone, multi-line, inline, unknown, no-day, and 30-day input', () => {
+  const bodies = [
+    'Le comparto su itinerario:\nDía 1: BANGKOK\nLlegada.',
+    'Hola Ana,\nLe comparto su itinerario:\nDía 1: ROMA\nLlegada.',
+    'Le comparto su itinerario: Día 1: BANGKOK\nLlegada.',
+    'ENCABEZADO\nNota introductoria.\nDía 1: ROMA\nLlegada.',
+    'Le comparto su itinerario:\nPendiente de confirmación.',
+    Array.from({ length: 30 }, (_, i) => `Día ${i + 1}: CIUDAD ${i + 1}\nActividad ${i + 1}.`).join('\n'),
+  ];
+  for (const body of bodies) assertLossless(body, parse(body));
+});
+
+test('wrapper-looking HTML remains inert plain text', () => {
+  const html = h.renderHostedPage({
+    body: 'Este es su itinerario: <script>alert(1)</script>',
+  });
+  assert.doesNotMatch(html, /<script>alert/);
+  assert.match(html, /&lt;script&gt;/);
+});
+
+test('a recipient name with an apostrophe, ampersand, or angle bracket is escaped, not executed', () => {
+  const html = h.renderHostedPage({
+    body: "Buenos días, Sra. O'Connor <img onerror=alert(1)>,\nEspero que se encuentre bien.\nLe comparto su itinerario:\nDía 1: ROMA\nLlegada & bienvenida.",
+  });
+  assert.doesNotMatch(html, /<img onerror/);
+  assert.match(html, /&lt;img onerror=alert\(1\)&gt;/);
+  assert.match(html, /Llegada &amp; bienvenida\./);
+  assert.match(html, /O&#39;Connor/);
+});
+
+test('destination extraction and hero resolution are unchanged for standalone and multi-line wrappers', () => {
+  // Day recognition does not move for these shapes: the wrapper occupies its
+  // own line(s) before the day heading either way.
+  const withWrapper = parse('Le comparto su itinerario:\nDía 1: BANGKOK\nLlegada.');
+  const withoutWrapper = parse('Día 1: BANGKOK\nLlegada.');
+  assert.equal(h.extractDestination(withWrapper), h.extractDestination(withoutWrapper));
+  assert.equal(h.extractDestination(withWrapper), 'BANGKOK');
+});
+
+test('an inline wrapper newly resolves a destination that did not resolve before this change', () => {
+  // Before Task 5, matchDay() failed on the whole combined line, so dayCount
+  // was 0 and extractDestination() returned null. It now finds the day and
+  // resolves BANGKOK, so a hero lookup fires that previously never happened.
+  const inline = parse('Hola Ana, le comparto su itinerario: Día 1: BANGKOK\nLlegada.');
+  assert.equal(inline.dayCount, 1);
+  assert.equal(h.extractDestination(inline), 'BANGKOK');
+});
+
+test('the link SMS carries the itinerary title, not the seller wrapper', () => {
+  const env = { PUBLIC_BASE_URL: 'https://sms.brintevaworlds.com' };
+  const parsed = parse('Le comparto su itinerario:\nDía 1: BANGKOK\nLlegada.');
+  // This mirrors how index.js builds the outgoing SMS: buildLinkSms() is fed
+  // parsed.title, not the raw seller text.
+  const sms = h.buildLinkSms(env, parsed.title, 'k7mp2q9xrt');
+  assert.match(sms, /^BANGKOK: https:\/\//);
+  assert.doesNotMatch(sms, /itinerario/i);
+});
+
+const sellerFixtures = require('./fixtures/hosted-seller-input.json');
+
+test('fixture corpus: synthetic seller wrappers parse to the documented contract', () => {
+  for (const { lines, expect: want, note } of sellerFixtures) {
+    const parsed = parse(lines.join('\n'));
+    if ('preamble' in want) assert.equal(parsed.preamble, want.preamble, note);
+    if ('title' in want) assert.equal(parsed.title, want.title, note);
+    if ('dayCount' in want) assert.equal(parsed.dayCount, want.dayCount, note);
+  }
+});
+
+// ── No-boundary fallback is provably lossless ──────────────────────────────
+// Invariant 6: with no recognized day anywhere, `preamble` stays null and the
+// wrapper grammar never runs — a phrase that looks exactly like a wrapper
+// must not vanish just because no itinerary happened to follow it.
+
+// Every non-empty normalized line must appear in title/preamble/section text,
+// and in the same relative order as the input.
+// A numbered day heading like "Día 1: BANGKOK" is never stored verbatim —
+// only place: 'BANGKOK' survives, because the renderer supplies the "Día N"
+// label itself and printing the source label too would show it twice (see
+// matchDay()'s comment). So containment here is bidirectional, matching the
+// pre-existing "loses no non-empty line" test's approach: a body line counts
+// as preserved if it appears in a parsed value, OR a parsed value (the
+// heading's date/place fragment) appears in the body line.
+function assertLossless(body, parsed) {
+  // A multi-line wrapper's `preamble` joins several original body lines into
+  // ONE string ("Hola Ana,\nLe comparto su itinerario:"). Split every
+  // candidate back into individual lines so each original body line has its
+  // own entry to match against, at its own position in the order check.
+  const values = [];
+  const pushLines = value => {
+    if (!value) return;
+    for (const piece of String(value).split('\n')) if (piece) values.push(piece);
+  };
+  pushLines(parsed.title);
+  pushLines(parsed.preamble);
+  for (const s of parsed.sections) {
+    pushLines(s.date);
+    pushLines(s.place);
+    s.lines.forEach(pushLines);
+  }
+
+  let lastIndex = -1;
+  for (const line of body.split('\n').map(l => l.trim()).filter(Boolean)) {
+    const idx = values.findIndex((v, i) => i > lastIndex && (v.includes(line) || line.includes(v)));
+    assert.ok(idx !== -1, `line missing (or out of order) from parse output: ${line}`);
+    lastIndex = idx;
+  }
+}
+
+test('a wrapper as the entire body is restored as ordinary title text', () => {
+  const parsed = parse('Le comparto su itinerario:');
+  assert.equal(parsed.preamble, null);
+  assert.equal(parsed.title, 'Le comparto su itinerario:');
+  assert.equal(parsed.dayCount, 0);
+  assert.equal(parsed.sections.length, 0);
+});
+
+test('a wrapper followed by one prose line has no day, so nothing is suppressed', () => {
+  const body = 'Le comparto su itinerario:\nPendiente de confirmación.';
+  const parsed = parse(body);
+  assert.equal(parsed.preamble, null);
+  assert.equal(parsed.dayCount, 0);
+  assertLossless(body, parsed);
+});
+
+test('a wrapper followed by several prose lines has no day, so nothing is suppressed', () => {
+  const body = [
+    'Le comparto su itinerario:',
+    'Pendiente de confirmación',
+    'Te llamaremos mañana.',
+    'Gracias por su paciencia.',
+  ].join('\n');
+  const parsed = parse(body);
+  assert.equal(parsed.preamble, null);
+  assert.equal(parsed.dayCount, 0);
+  assertLossless(body, parsed);
+});
+
+test('a greeting plus delivery clause with no day heading is fully restored', () => {
+  const body = 'Hola Ana,\nLe comparto su itinerario:\nPendiente de confirmación.';
+  const parsed = parse(body);
+  assert.equal(parsed.preamble, null);
+  assert.equal(parsed.dayCount, 0);
+  assertLossless(body, parsed);
+});
+
+test('malformed heading-like text after a wrapper stays visible, not suppressed', () => {
+  const body = 'Le comparto su itinerario:\nday 1 of the conference\ncall at 09/11/2026';
+  const parsed = parse(body);
+  assert.equal(parsed.preamble, null);
+  assert.equal(parsed.dayCount, 0);
+  assertLossless(body, parsed);
+});
+
+test('no-boundary fallback never invokes the wrapper grammar', () => {
+  // A three-line shape that WOULD match the greeting+courtesy+delivery grammar
+  // if a day followed it. With no day anywhere, invariant 6 means the wrapper
+  // path is never even consulted — every line renders as ordinary text.
+  const body = [
+    "Buenos días, Sra. O'Connor,",
+    'Espero que se encuentre bien.',
+    'Le comparto su itinerario:',
+  ].join('\n');
+  const parsed = parse(body);
+  assert.equal(parsed.preamble, null);
+  assert.equal(parsed.dayCount, 0);
+  assertLossless(body, parsed);
 });
 
 test('free-form text with no days renders as title plus paragraphs', () => {

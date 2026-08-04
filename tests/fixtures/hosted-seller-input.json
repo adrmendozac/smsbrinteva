@@ -1,0 +1,76 @@
+[
+  {
+    "note": "synthetic — built from the grammar in docs/superpowers/plans/2026-08-03-hosted-parser-normalization.md, not pulled from production. No customer names, phone numbers, or booking identifiers.",
+    "lines": ["Le comparto su itinerario:", "Día 1: BANGKOK", "Llegada."],
+    "expect": { "preamble": "Le comparto su itinerario:", "title": "BANGKOK", "dayCount": 1 }
+  },
+  {
+    "note": "one-line, no terminal punctuation",
+    "lines": ["Aquí está su itinerario", "Day 1: Rome", "Arrival."],
+    "expect": { "preamble": "Aquí está su itinerario", "title": "Rome", "dayCount": 1 }
+  },
+  {
+    "note": "one-line, English availability family",
+    "lines": ["Please find your itinerary below", "Day 1: London", "Arrival."],
+    "expect": { "preamble": "Please find your itinerary below", "title": "London", "dayCount": 1 }
+  },
+  {
+    "note": "two-line, greeting plus delivery",
+    "lines": ["Hola Ana,", "Le comparto su itinerario:", "Día 1: ROMA", "Llegada."],
+    "expect": { "preamble": "Hola Ana,\nLe comparto su itinerario:", "title": "ROMA", "dayCount": 1 }
+  },
+  {
+    "note": "two-line, English greeting plus transfer family",
+    "lines": ["Hello Ana,", "I am sharing your itinerary", "Day 1: Paris", "Arrival."],
+    "expect": { "preamble": "Hello Ana,\nI am sharing your itinerary", "title": "Paris", "dayCount": 1 }
+  },
+  {
+    "note": "three-line, greeting plus courtesy plus delivery, honorific with apostrophe",
+    "lines": [
+      "Buenos días, Sra. O'Connor,",
+      "Espero que se encuentre bien.",
+      "Le comparto su itinerario:",
+      "Día 1: MADRID",
+      "Llegada."
+    ],
+    "expect": {
+      "preamble": "Buenos días, Sra. O'Connor,\nEspero que se encuentre bien.\nLe comparto su itinerario:",
+      "title": "MADRID",
+      "dayCount": 1
+    }
+  },
+  {
+    "note": "wrapper plus a meaningful itinerary title survives on its own line",
+    "lines": ["Hola Ana,", "Le comparto su itinerario:", "MARAVILLAS DE ITALIA", "Día 1: ROMA", "Llegada."],
+    "expect": {
+      "preamble": "Hola Ana,\nLe comparto su itinerario:",
+      "title": "MARAVILLAS DE ITALIA",
+      "dayCount": 1
+    }
+  },
+  {
+    "note": "meaningful leading content is never classified as a wrapper",
+    "lines": ["Viaje de aniversario para Ana y Luis", "Día 1: ROMA", "Llegada."],
+    "expect": { "preamble": null, "title": "Viaje de aniversario para Ana y Luis", "dayCount": 1 }
+  },
+  {
+    "note": "wrapper with no day anywhere is restored as ordinary text",
+    "lines": ["Le comparto su itinerario:"],
+    "expect": { "preamble": null, "title": "Le comparto su itinerario:", "dayCount": 0 }
+  },
+  {
+    "note": "wrapper followed only by prose is restored — no proven itinerary survives",
+    "lines": ["Le comparto su itinerario:", "Pendiente de confirmación", "Te llamaremos mañana."],
+    "expect": { "preamble": null, "dayCount": 0 }
+  },
+  {
+    "note": "greeting alone with no delivery clause is never suppressible",
+    "lines": ["Hola Ana", "Día 1: ROMA", "Llegada."],
+    "expect": { "preamble": null, "title": "Hola Ana", "dayCount": 1 }
+  },
+  {
+    "note": "single combined line: greeting, comma, delivery clause",
+    "lines": ["Hola Ana, le comparto su itinerario:", "Día 1: BANGKOK", "Llegada."],
+    "expect": { "preamble": "Hola Ana, le comparto su itinerario:", "title": "BANGKOK", "dayCount": 1 }
+  }
+]

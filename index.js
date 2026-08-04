@@ -5,7 +5,7 @@ const axios = require('axios');
 const mysql = require('mysql2/promise');
 const jwt = require('jsonwebtoken');
 const { sanitizeForSMS, MMS_CAPTION_MAX } = require('./lib/sms');
-const { createHostedMessage, buildLinkSms, registerHostedRoutes } = require('./lib/hosted');
+const { createHostedMessage, buildLinkSms, classifyItineraries, registerHostedRoutes } = require('./lib/hosted');
 const { registerCampaignRoutes } = require('./lib/campaigns');
 const { registerContactRoutes } = require('./lib/contacts');
 const { registerMediaRoutes } = require('./lib/media');
@@ -374,8 +374,21 @@ kommo.registerKommoRoutes(app, { env: process.env }, async (payload) => {
   const outgoingMax = mediaUrl ? MMS_CAPTION_MAX : threshold;
   let outgoing = clean;
   let hosted = null;
+  // A fresh source Día 1 after another numbered day is unsafe without an
+  // explicit same-client boundary. Check the raw body before sending anything.
+  const itineraryKind = classifyItineraries(text);
+  if (itineraryKind.kind === 'ambiguous') {
+    await failRelay('Detecté más de un itinerario. Separe los tours del mismo cliente con --- NUEVO ITINERARIO ---');
+    return;
+  }
+  if (itineraryKind.kind === 'invalid-marker') {
+    await failRelay('Cada lado de --- NUEVO ITINERARIO --- debe incluir al menos un Día válido');
+    return;
+  }
 
-  if (clean.length > outgoingMax) {
+  // An explicit appended tour always needs a hosted page, even if its SMS text
+  // would fit, because the page restarts each tour at Día 1 and hides the marker.
+  if (clean.length > outgoingMax || itineraryKind.kind === 'explicit-appended') {
     try {
       // Store the RAW text, not `clean`: the page is HTML and can render the
       // accents and ñ that GSM-7 cannot.
