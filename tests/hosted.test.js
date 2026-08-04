@@ -225,6 +225,22 @@ const PHOTO = {
 const fakeAxios = (impl) => ({ get: impl });
 const env = { UNSPLASH_ACCESS_KEY: 'test-key' };
 
+test('destination aliases affect only the Unsplash search name', async () => {
+  assert.equal(h.destinationSearchName('BKK'), 'Bangkok');
+  assert.equal(h.destinationSearchName('bkk'), 'Bangkok');
+  assert.equal(h.destinationSearchName('San Miguel de Allende'), 'San Miguel de Allende');
+
+  let query = null;
+  const axios = fakeAxios(async (_url, cfg) => {
+    query = cfg.params.query;
+    return { data: { results: [PHOTO] } };
+  });
+  const hero = await h.fetchUnsplashHero({ axios, env }, 'BKK');
+
+  assert.equal(query, 'Bangkok travel landmark');
+  assert.equal(hero.destination, 'BKK', 'visible destination remains seller text');
+});
+
 test('search sends the contract parameters and authentication', async () => {
   let seen = null;
   const axios = fakeAxios(async (url, cfg) => { seen = { url, cfg }; return { data: { results: [PHOTO] } }; });

@@ -19,3 +19,7 @@ inbox-ui/dist/
 
 # Isolated feature worktrees
 .worktrees/
+
+# Local agent planning documents (README.md is the GitHub-facing documentation)
+docs/superpowers/plans/
+docs/superpowers/specs/

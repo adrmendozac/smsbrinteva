@@ -18,8 +18,10 @@ const kommoCrm = require('./lib/kommoCrm');
 const { sendMessage, sendImage } = require('./lib/vonage');
 const { registerVoiceRoutes } = require('./lib/voice');
 const { createLogger } = require('./lib/logs');
+const { registerCrawlerProtection } = require('./lib/crawlers');
 
 const app = express();
+registerCrawlerProtection(app);
 // Capture the raw request bytes so the Kommo webhook can verify X-Signature
 // (HMAC of the exact body) even though the body is also JSON-parsed for handlers.
 const captureRaw = (req, res, buf) => { req.rawBody = buf; };

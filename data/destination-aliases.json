@@ -1,0 +1,130 @@
+[
+  {
+    "displayName": "CDMX",
+    "searchName": "Ciudad de México"
+  },
+  {
+    "displayName": "NYC",
+    "searchName": "New York City"
+  },
+  {
+    "displayName": "LA",
+    "searchName": "Los Angeles"
+  },
+  {
+    "displayName": "SF",
+    "searchName": "San Francisco"
+  },
+  {
+    "displayName": "Vegas",
+    "searchName": "Las Vegas"
+  },
+  {
+    "displayName": "DC",
+    "searchName": "Washington, D.C."
+  },
+  {
+    "displayName": "BCN",
+    "searchName": "Barcelona"
+  },
+  {
+    "displayName": "Rio",
+    "searchName": "Rio de Janeiro"
+  },
+  {
+    "displayName": "SP",
+    "searchName": "São Paulo"
+  },
+  {
+    "displayName": "KL",
+    "searchName": "Kuala Lumpur"
+  },
+  {
+    "displayName": "CHI",
+    "searchName": "Chicago"
+  },
+  {
+    "displayName": "MIA",
+    "searchName": "Miami"
+  },
+  {
+    "displayName": "Philly",
+    "searchName": "Philadelphia"
+  },
+  {
+    "displayName": "NOLA",
+    "searchName": "New Orleans"
+  },
+  {
+    "displayName": "ATL",
+    "searchName": "Atlanta"
+  },
+  {
+    "displayName": "SLC",
+    "searchName": "Salt Lake City"
+  },
+  {
+    "displayName": "PDX",
+    "searchName": "Portland"
+  },
+  {
+    "displayName": "Joburg",
+    "searchName": "Johannesburg"
+  },
+  {
+    "displayName": "SG",
+    "searchName": "Singapore"
+  },
+  {
+    "displayName": "HK",
+    "searchName": "Hong Kong"
+  },
+  {
+    "displayName": "BUE",
+    "searchName": "Buenos Aires"
+  },
+  {
+    "displayName": "MCR",
+    "searchName": "Manchester"
+  },
+  {
+    "displayName": "LBC",
+    "searchName": "Long Beach"
+  },
+  {
+    "displayName": "OKC",
+    "searchName": "Oklahoma City"
+  },
+  {
+    "displayName": "KC",
+    "searchName": "Kansas City"
+  },
+  {
+    "displayName": "RVA",
+    "searchName": "Richmond"
+  },
+  {
+    "displayName": "BKK",
+    "searchName": "Bangkok"
+  },
+  {
+    "displayName": "HKT",
+    "searchName": "Phuket"
+  },
+  {
+    "displayName": "CUN",
+    "searchName": "Cancún"
+  },
+  {
+    "displayName": "GDL",
+    "searchName": "Guadalajara"
+  },
+  {
+    "displayName": "PVR",
+    "searchName": "Puerto Vallarta"
+  },
+  {
+    "displayName": "MEX",
+    "searchName": "Ciudad de México"
+  }
+]
