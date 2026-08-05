@@ -100,6 +100,7 @@ test('an appended itinerary renders each tour with its own Día 1', () => {
   });
   assert.equal(html.match(/Día 1/g).length, 2);
   assert.doesNotMatch(html, /NUEVO ITINERARIO/);
+  assert.match(html, /class="itinerary-tour-label">Itinerario 2<\/p>/);
   assert.match(html, /ROMA/);
   assert.match(html, /PARÍS/);
 });

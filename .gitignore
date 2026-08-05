@@ -23,3 +23,10 @@ inbox-ui/dist/
 # Local agent planning documents (README.md is the GitHub-facing documentation)
 docs/superpowers/plans/
 docs/superpowers/specs/
+
+# Local scratch preview of a hosted itinerary page (lib/hosted.js renders these
+# live at /i/:code; this file is just for eyeballing template/CSS changes)
+itinerario.html
+
+# Local generator for the two-itinerary customer-page preview.
+tests/render-two-itineraries-preview.js

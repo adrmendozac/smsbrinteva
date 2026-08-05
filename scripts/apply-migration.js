@@ -7,7 +7,7 @@
 require('dotenv').config();
 const fs = require('fs');
 const mysql = require('mysql2/promise');
-
+ 
 (async () => {
   const file = process.argv[2];
   if (!file) {
