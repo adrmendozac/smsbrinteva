@@ -91,6 +91,7 @@ AI_AUTOREPLY            # 1 = respuesta automática; 0 = contestan los vendedore
 PUBLIC_BASE_URL         # base de los enlaces (default sms.brintevaworlds.com)
 HOSTED_LINK_THRESHOLD   # caracteres a partir de los cuales se envía enlace (2000)
 HOSTED_LINK_TTL_DAYS    # vigencia del enlace en días (90)
+HOSTED_AI_TIMEOUT_MS    # timeout de Haiku para interpretar el mensaje (default 12000)
 UNSPLASH_ACCESS_KEY     # opcional: foto del destino. Sin llave no hay foto
 
 # Kommo
@@ -116,7 +117,7 @@ VOICE_RING_TIMEOUT  VOICE_FALLBACK_NUMBER
 | `promotions` | Catálogo que se inyecta al prompt de la IA |
 | `consent_records` | Evidencia de consentimiento del formulario web (10DLC) |
 | `logs` | Bitácora estructurada: envíos, acuses, webhooks, auth, acciones del panel |
-| `hosted_messages` | Itinerarios y textos largos servidos en `/i/:code`; vencen a los 90 días |
+| `hosted_messages` | Itinerarios y textos largos; conserva cuerpo crudo, estructura validada de Haiku y costo del parseo |
 
 No hay tabla `users`: el panel se protege con un PIN compartido que emite un JWT.
 
@@ -318,6 +319,29 @@ acepta encabezados en español e inglés —`Día 1: BANGKOK`, `1er día:`,
 llegan los itinerarios reales. Una línea es encabezado sólo si coincide con la
 forma completa, así que `day 1 of the conference` sigue siendo un párrafo.
 Ninguna línea con contenido se pierde nunca.
+
+Al crear un mensaje alojado, Haiku interpreta **una sola vez** el texto flexible
+del vendedor y devuelve referencias a las líneas originales: título, preámbulo,
+tours y días. Esto permite entender encabezados sin separador como
+`Día 1 AEROPUERTO OAXACA` y bloques de varias promociones. La respuesta se
+valida antes de guardarse; el contenido visible siempre sale del texto original,
+no de una reescritura del modelo. Si Haiku falla, tarda demasiado o devuelve una
+estructura insegura, se usa el parser determinista anterior.
+
+La estructura validada queda en `hosted_messages.ai_structure`. Abrir o recargar
+`/i/:code` nunca llama a Anthropic. El registro también guarda método, modelo,
+duración, tokens y costo estimado cuando la API entrega esos contadores. A 30
+interpretaciones diarias, el uso típico estimado es aproximadamente **$5.40 USD
+al mes** (rango de referencia: $2.25 para textos cortos a $13.95 para textos
+largos, con precios Haiku 4.5 de $1/M tokens de entrada y $5/M de salida).
+
+Los registros existentes siguen usando el parser determinista hasta que se
+reprocesen explícitamente:
+
+```bash
+node scripts/reprocess-hosted.js --code 4kq66yjbaq
+node scripts/reprocess-hosted.js --limit 25
+```
 
 El límite del cuerpo son **120 000 bytes UTF-8** (no caracteres: MySQL cuenta
 bytes y JavaScript cuenta unidades UTF-16, y una `ñ` ocupa dos bytes). Por eso

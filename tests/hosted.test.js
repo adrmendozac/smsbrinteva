@@ -1148,3 +1148,157 @@ test('creation rejects empty, whitespace, and non-string bodies', async () => {
       `should reject: ${JSON.stringify(bad)}`);
   }
 });
+
+// ── Haiku-assisted creation and stored rendering (Phase 2) ───────────────
+
+const AI_OAXACA_BODY = [
+  'Hola, le comparto el itinerario.',
+  'OAXACA AL MÁXIMO - 2 dias',
+  'Día 1 AEROPUERTO OAXACA / OAXACA',
+  'Llegada y traslado al hotel.',
+  'Día 2 OAXACA / MONTE ALBÁN',
+  'Visita a la zona arqueológica.',
+].join('\n');
+
+const AI_OAXACA_STRUCTURE = {
+  classification: 'itinerary',
+  title: { line: 1, value: 'OAXACA AL MÁXIMO - 2 dias' },
+  preamble: { startLine: 0, endLine: 0 },
+  tours: [{
+    titleLine: 1,
+    days: [
+      { number: 1, headingLine: 2, place: 'AEROPUERTO OAXACA / OAXACA', contentStartLine: 3, contentEndLine: 3 },
+      { number: 2, headingLine: 4, place: 'OAXACA / MONTE ALBÁN', contentStartLine: 5, contentEndLine: 5 },
+    ],
+  }],
+};
+
+function aiAxios(output, usage = null) {
+  return {
+    post: async () => ({ data: { content: [{ text: JSON.stringify(output) }], usage } }),
+    get: async () => ({ data: { results: [] } }),
+  };
+}
+
+test('stored Haiku structure renders separator-less day headings without another API call', () => {
+  const html = h.renderHostedPage({
+    title: 'OAXACA AL MÁXIMO - 2 dias',
+    body: AI_OAXACA_BODY,
+    ai_structure: JSON.stringify(AI_OAXACA_STRUCTURE),
+  });
+  assert.match(html, /OAXACA AL MÁXIMO - 2 dias/);
+  assert.match(html, /Día 1/);
+  assert.match(html, /Día 2/);
+  assert.match(html, /AEROPUERTO OAXACA \/ OAXACA/);
+  assert.match(html, /Visita a la zona arqueológica/);
+  assert.match(html, /2 días/);
+});
+
+test('stored Haiku travel offers render as separate titled blocks', () => {
+  const body = [
+    'Buenas tardes, estas son las opciones:',
+    'Guadalajara y León - septiembre 2026',
+    'Precio: $1,290 USD por persona',
+    'Guadalajara y Morelia - diciembre 2026',
+    'Reserva con $250 USD por persona',
+  ].join('\n');
+  const structure = {
+    classification: 'travel_offers',
+    title: null,
+    preamble: { startLine: 0, endLine: 0 },
+    tours: [
+      { titleLine: 1, days: [] },
+      { titleLine: 3, days: [] },
+    ],
+  };
+  const html = h.renderHostedPage({ title: 'Opciones de viaje', body, ai_structure: structure });
+  assert.match(html, /Guadalajara y León - septiembre 2026/);
+  assert.match(html, /Guadalajara y Morelia - diciembre 2026/);
+  assert.match(html, /Precio: \$1,290 USD por persona/);
+  assert.match(html, /Reserva con \$250 USD por persona/);
+});
+
+test('creation persists validated Haiku structure and derives the source title', async () => {
+  let inserted = null;
+  const db = { execute: async (sql, params) => { inserted = { sql, params }; return [{ insertId: 21 }]; } };
+  const rec = await h.createHostedMessage({
+    db,
+    axios: aiAxios(AI_OAXACA_STRUCTURE, { input_tokens: 3000, output_tokens: 600 }),
+    env: { ANTHROPIC_API_KEY: 'test-key' },
+    log: { info: () => {}, warn: () => {} },
+  }, { body: AI_OAXACA_BODY });
+
+  assert.equal(rec.parseMethod, 'haiku');
+  assert.equal(rec.classification, 'itinerary');
+  assert.equal(rec.title, 'OAXACA AL MÁXIMO - 2 dias');
+  assert.match(inserted.sql, /ai_structure/);
+  assert.equal((inserted.sql.match(/\?/g) || []).length, inserted.params.length, 'insert placeholders match params');
+  assert.ok(inserted.params.includes(AI_OAXACA_BODY), 'raw body is stored');
+  assert.ok(inserted.params.some(value => typeof value === 'string' && value.includes('AEROPUERTO OAXACA')));
+  assert.ok(inserted.params.includes('source'));
+  assert.ok(inserted.params.includes(3000));
+  assert.ok(inserted.params.includes(600));
+  assert.ok(inserted.params.includes(0.006));
+});
+
+test('an itinerary with no Haiku source title uses the neutral fallback', async () => {
+  const body = 'Hola, revise su viaje.\nDía 1 Bangkok\nLlegada al hotel.';
+  const output = {
+    classification: 'itinerary',
+    title: null,
+    preamble: { startLine: 0, endLine: 0 },
+    tours: [{ titleLine: null, days: [
+      { number: 1, headingLine: 1, place: 'Bangkok', contentStartLine: 2, contentEndLine: 2 },
+    ] }],
+  };
+  const db = { execute: async () => [{ insertId: 22 }] };
+  const rec = await h.createHostedMessage({
+    db,
+    axios: aiAxios(output),
+    env: { ANTHROPIC_API_KEY: 'test-key' },
+    log: { info: () => {}, warn: () => {} },
+  }, { body });
+  assert.equal(rec.title, 'Itinerario de viaje');
+  assert.equal(rec.parseMethod, 'haiku');
+});
+
+test('a Haiku-suggested title is persisted with suggested provenance', async () => {
+  const body = 'Hola, revise su viaje.\nDía 1 Bangkok\nLlegada al hotel.';
+  const output = {
+    classification: 'itinerary',
+    title: { line: null, value: 'Itinerario Bangkok', origin: 'suggested' },
+    preamble: { startLine: 0, endLine: 0 },
+    tours: [{ titleLine: null, days: [
+      { number: 1, headingLine: 1, place: 'Bangkok', contentStartLine: 2, contentEndLine: 2 },
+    ] }],
+  };
+  let inserted = null;
+  const db = { execute: async (sql, params) => { inserted = { sql, params }; return [{ insertId: 24 }]; } };
+  const rec = await h.createHostedMessage({
+    db,
+    axios: aiAxios(output),
+    env: { ANTHROPIC_API_KEY: 'test-key' },
+    log: { info: () => {}, warn: () => {} },
+  }, { body });
+  assert.equal(rec.title, 'Itinerario Bangkok');
+  assert.ok(inserted.params.includes('suggested'));
+});
+
+test('Haiku API failure falls back to deterministic parsing and still creates the page', async () => {
+  const db = { execute: async () => [{ insertId: 23 }] };
+  const axios = { post: async () => { throw new Error('network unavailable'); } };
+  const rec = await h.createHostedMessage({
+    db,
+    axios,
+    env: { ANTHROPIC_API_KEY: 'test-key' },
+    log: { info: () => {}, warn: () => {} },
+  }, { body: 'Día 1: ROMA\nLlegada.' });
+  assert.equal(rec.parseMethod, 'deterministic');
+  assert.equal(rec.title, 'ROMA');
+});
+
+test('Haiku cost estimate uses separate input and output prices', () => {
+  assert.equal(h.estimateHaikuCost(3000, 600), 0.006);
+  assert.equal(h.estimateHaikuCost(1000, 300), 0.0025);
+  assert.equal(h.estimateHaikuCost(null, 300), null);
+});

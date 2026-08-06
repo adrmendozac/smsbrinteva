@@ -24,6 +24,20 @@ Parsing must be linear in the number of input characters and lines. A 30-day
 itinerary must not cause recursion, quadratic rescanning, or one API call per
 day.
 
+## Haiku interpretation layer
+
+New hosted messages may carry a validated `ai_structure` produced once at
+creation time. Haiku classifies loosely formatted input and identifies source
+line indexes for titles, preambles, tours, day headings, and content. It does
+not replace the raw body or supply day descriptions. The renderer reconstructs
+all visible body content from the normalized source lines referenced by that
+structure.
+
+The deterministic rules in this document remain the required fallback for
+missing, invalid, timed-out, or legacy AI structures. Public page requests
+never call Haiku. Reprocessing is an explicit administrative operation and
+must leave `hosted_messages.body` unchanged.
+
 ## Input normalization
 
 `hosted_messages.body` always stores the seller's raw text, byte-for-byte,
