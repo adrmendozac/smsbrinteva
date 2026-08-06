@@ -7,6 +7,8 @@
 // run anywhere — the live-DB verification stays a separate, manual step.
 const test = require('node:test');
 const assert = require('node:assert');
+const fs = require('node:fs');
+const path = require('node:path');
 const h = require('../lib/hosted');
 
 const parse = body => h.parseBody(body);
@@ -27,6 +29,93 @@ test('recognizes English numbered headings', () => {
   for (const line of ['Day 1: Bangkok', 'DAY 02 - Bangkok', 'Day 3 — Chiang Rai', 'First day: Bangkok']) {
     assert.ok(h.matchDay(line), `should be a heading: ${line}`);
   }
+});
+
+test('recognizes the Spanish "Día 1.- MADRID" period-dash separator', () => {
+  for (const line of ['Día 1.- MADRID', 'DIA 1.-MADRID', 'Día 2.– TOLEDO', 'Día 3.— SEVILLA']) {
+    assert.ok(h.matchDay(line), `should be a heading: ${line}`);
+  }
+  assert.equal(h.matchDay('Día 1.- MADRID').place, 'MADRID');
+  assert.equal(h.matchDay('11.09.2026.- MADRID').date, '11.09.2026');
+  // The period is what makes the un-spaced dash safe; a bare interior hyphen
+  // must still never split a place name.
+  assert.equal(h.matchDay('Día 1: Baden-Baden').place, 'Baden-Baden');
+  // A colon earlier in the line still wins (leftmost match).
+  assert.equal(h.matchDay('Día 1: MADRID.- llegada temprano').place, 'MADRID.- llegada temprano');
+});
+
+test('period-dash prose is still not a day heading', () => {
+  for (const line of [
+    'Precio: $2.499.- por persona', 'Total 2.499.- USD', 'Hotel 4.- estrellas',
+    'Fin de los servicios.- Traslado incluido',
+  ]) {
+    assert.equal(h.matchDay(line), null, `should NOT be a heading: ${line}`);
+  }
+});
+
+// ── Word-less "1.- MADRID" headings ────────────────────────────────────────
+// This shape carries no word marking it as a day, so it is decided per
+// document rather than per line. See allowsBareNumberDays().
+
+test('recognizes word-less numbered headings when the whole paste uses them', () => {
+  const parsed = parse('1.- MADRID\nLlegada y traslado.\n2.- TOLEDO\nExcursión.');
+  assert.equal(parsed.dayCount, 2);
+  assert.equal(parsed.title, 'MADRID a TOLEDO');
+  assert.deepEqual(parsed.sections.filter(s => s.type === 'day').map(s => s.place), ['MADRID', 'TOLEDO']);
+  // The renderer still supplies exactly one sequential label.
+  assert.equal(h.renderHostedPage({ body: '1.- MADRID\nLlegada.\n2.- TOLEDO\nTren.' }).match(/Día 1/g).length, 1);
+});
+
+test('word-less headings work with colon and spaced-dash separators too', () => {
+  assert.equal(parse('1: MADRID\nLlegada.\n2: TOLEDO\nTren.').dayCount, 2);
+  assert.equal(parse('1 - MADRID\nLlegada.\n2 - TOLEDO\nTren.').dayCount, 2);
+});
+
+test('bare numbers stay list items when the paste already has real day headings', () => {
+  const parsed = parse('Día 1: LIMA\nItinerario:\n1 - Traslado\n2 - Cena');
+  assert.equal(parsed.dayCount, 1);
+  assert.deepEqual(parsed.sections[0].lines, ['Itinerario:', '1 - Traslado', '2 - Cena']);
+  // Same when the recognized headings are weekdays rather than numbers.
+  assert.equal(parse('lunes: MADRID\nLlegada.\n1 - Traslado\n2 - Cena').dayCount, 1);
+});
+
+test('bare numbers are rejected without a consistent day-numbered run', () => {
+  assert.equal(parse('1.- MADRID\nLlegada.\nAlojamiento.').dayCount, 0, 'one candidate is not a style');
+  assert.equal(parse('3.- MADRID\nx\n4.- TOLEDO\ny').dayCount, 0, 'must start at 1');
+  assert.equal(parse('1.- MADRID\nx\n2.- TOLEDO\ny\n7.- SEVILLA\nz').dayCount, 0, 'must be consecutive');
+});
+
+test('a numbered inclusion list is never read as an itinerary', () => {
+  assert.equal(parse('Incluye:\n1.- Traslados\n2.- Desayunos').dayCount, 0);
+  // Nor are numbered items inside an inclusion run that follows real days.
+  const parsed = parse('1.- LIMA\nLlegada.\n2.- CUSCO\nTren.\nIncluye:\n1.- Traslados\n2.- Desayunos');
+  assert.equal(parsed.dayCount, 2);
+  assert.deepEqual(
+    parsed.sections.find(s => s.type === 'inclusions').included,
+    ['Traslados', 'Desayunos'],
+    'the "1.-" prefix is stripped whole, leaving no orphan dash'
+  );
+});
+
+test('long numbered lines are services, not destinations', () => {
+  assert.equal(parse([
+    '1.- Traslados de llegada y salida del aeropuerto principal en Dubái',
+    '2.- Espectáculo Noche Turca en Capadocia, sólo en la opción -SI',
+  ].join('\n')).dayCount, 0);
+});
+
+test('word-less itineraries keep the unmarked-reset guard', () => {
+  assert.equal(
+    h.classifyItineraries('1.- MADRID\nx\n2.- TOLEDO\ny\n1.- LIMA\nz\n2.- CUSCO\nw').kind,
+    'ambiguous'
+  );
+  assert.equal(h.classifyItineraries('1.- MADRID\nx\n2.- TOLEDO\ny').kind, 'single');
+  // The style is decided for the whole paste, so a short first block after an
+  // explicit marker is still parsed with word-less headings enabled.
+  assert.equal(
+    h.classifyItineraries('1.- MADRID\nLlegada.\n--- NUEVO ITINERARIO ---\n1.- LIMA\nx\n2.- CUSCO\ny').kind,
+    'explicit-appended'
+  );
 });
 
 test('recognizes Spanish weekday headings and keeps their date text', () => {
@@ -63,6 +152,15 @@ test('numbered headings do not print the day label twice', () => {
   assert.equal(h.matchDay('Día 1: BANGKOK').label, null);
   const html = h.renderHostedPage({ body: 'Día 1: BANGKOK\nLlegada.' });
   assert.equal(html.match(/Día 1/g).length, 1);
+});
+
+test('keeps all days expanded and provides an expand-collapse control', () => {
+  const html = h.renderHostedPage({ body: 'Día 1: ROMA\nLlegada.\nDía 2: PISA\nVisita.' });
+  assert.match(html, /<details class="day-details" open><summary>[\s\S]*?Día 1/);
+  assert.match(html, /<details class="day-details" open><summary>[\s\S]*?Día 2/);
+  assert.match(html, /data-toggle-details data-expand-label="Expandir" data-collapse-label="Comprimir" aria-expanded="true">Comprimir/);
+  assert.match(html, /\.day-details\[open\] summary::after\{content:'−'\}/);
+  assert.match(html, /\.day-details:not\(\[open\]\) \.day-content\{display:block\}/);
 });
 
 // ── Structure ──────────────────────────────────────────────────────────────
@@ -103,6 +201,84 @@ test('an appended itinerary renders each tour with its own Día 1', () => {
   assert.match(html, /class="itinerary-tour-label">Itinerario 2<\/p>/);
   assert.match(html, /ROMA/);
   assert.match(html, /PARÍS/);
+});
+
+test('parses and renders Spanish included and excluded lists after an itinerary', () => {
+  const body = [
+    'Día 1: DUBÁI',
+    'Llegada.',
+    'INCLUYE:',
+    '• Traslados de llegada y salida.',
+    '• 12 noches de alojamiento.',
+    'NO INCLUYE:',
+    '• Bebidas no incluidas en las comidas.',
+    '• Visado no incluido.',
+  ].join('\n');
+  const parsed = parse(body);
+  const inclusions = parsed.sections.find(section => section.type === 'inclusions');
+
+  assert.deepEqual(inclusions.included, ['Traslados de llegada y salida.', '12 noches de alojamiento.']);
+  assert.deepEqual(inclusions.excluded, ['Bebidas no incluidas en las comidas.', 'Visado no incluido.']);
+
+  const html = h.renderHostedPage({ body });
+  assert.match(html, /class="inclusions-column inclusions-column--included"/);
+  assert.match(html, /class="inclusions-column inclusions-column--excluded"/);
+  assert.match(html, /svgs\/solid\/circle-check\.svg/);
+  assert.match(html, /svgs\/solid\/ban\.svg/);
+  assert.match(html, /12 noches de alojamiento/);
+  assert.match(html, /Visado no incluido/);
+});
+
+test('recognizes inline Spanish inclusion headings without spaces after a sentence', () => {
+  const body = 'Día 12: ESTAMBUL\nFin de los servicios.Incluye: Traslado del hotel.No incluye: Visado y bebidas.';
+  const parsed = parse(body);
+  const inclusions = parsed.sections.find(section => section.type === 'inclusions');
+
+  assert.equal(parsed.sections[0].lines[0], 'Fin de los servicios.');
+  assert.deepEqual(inclusions.included, ['Traslado del hotel.']);
+  assert.deepEqual(inclusions.excluded, ['Visado y bebidas.']);
+});
+
+test('a trailing inline heading switches state for the following lines', () => {
+  const body = [
+    'Día 1: BANGKOK',
+    'Llegada.',
+    'Incluye: Traslado del hotel.No incluye:',
+    '• Visado',
+    '• Propinas',
+  ].join('\n');
+  const parsed = parse(body);
+  const inclusions = parsed.sections.find(section => section.type === 'inclusions');
+
+  assert.deepEqual(inclusions.included, ['Traslado del hotel.']);
+  assert.deepEqual(inclusions.excluded, ['Visado', 'Propinas']);
+});
+
+test('prose before a trailing inline heading stays day content, items follow the heading', () => {
+  const body = [
+    'Día 1: BANGKOK',
+    'Fin de los servicios.Incluye:',
+    '• Traslados',
+    '• Desayunos',
+  ].join('\n');
+  const parsed = parse(body);
+  const inclusions = parsed.sections.find(section => section.type === 'inclusions');
+
+  assert.equal(parsed.sections[0].lines[0], 'Fin de los servicios.');
+  assert.deepEqual(inclusions.included, ['Traslados', 'Desayunos']);
+  assert.deepEqual(inclusions.excluded, []);
+});
+
+test('keeps ordinary Spanish inclusion prose as itinerary content', () => {
+  const parsed = parse('Día 1: ROMA\nEl paquete incluye traslado del hotel.');
+  assert.equal(parsed.sections.some(section => section.type === 'inclusions'), false);
+  assert.equal(parsed.sections[0].lines[0], 'El paquete incluye traslado del hotel.');
+});
+
+test('retains option hyphens in inclusion items', () => {
+  const parsed = parse('Día 1: ROMA\nIncluye\n• Espectáculo, sólo en la opción -SI.');
+  const inclusions = parsed.sections.find(section => section.type === 'inclusions');
+  assert.equal(inclusions.included[0], 'Espectáculo, sólo en la opción -SI.');
 });
 
 test('parses days separated by blank lines', () => {
@@ -655,16 +831,20 @@ test('renders the externally hosted Brinteva logo in the header and footer', () 
   assert.equal(html.match(new RegExp(`src="${logoUrl}"`, 'g'))?.length, 2);
   assert.match(html, /<header class="masthead">[\s\S]*alt="Brinteva Worlds"/);
   assert.match(html, /<footer class="site-footer">[\s\S]*alt="Brinteva Worlds"/);
+  assert.match(html, /@media \(prefers-color-scheme:dark\)\{[\s\S]*?\.brand-logo\{filter:brightness\(0\) invert\(1\)\}/);
   assert.match(html, /© 2026 Todos los derechos reservados\.<\/span>[\s\S]*Brinteva Worlds, Inc\./);
   assert.doesNotMatch(html, /class="mark"|class="brand"/);
 });
 
-test('renders the questions card in Brinteva crimson with high-contrast text', () => {
+test('renders the questions card on the fixed brand-navy surface with high-contrast text', () => {
   const html = h.renderHostedPage({ body: 'Día 1: BANGKOK\nLlegada.' });
 
-  assert.match(html, /\.contact\{[\s\S]*?background:var\(--crimson\)/);
-  assert.match(html, /\.contact h2,[\s\S]*?color:#fff/);
-  assert.match(html, /href="tel:\+19256658003">\(925\) 665-8003<\/a>/);
+  assert.match(html, /\.contact\{[\s\S]*?background:linear-gradient\(155deg,var\(--night\)/);
+  assert.match(html, /--night:#1a2038; --night-2:#262f57/);
+  assert.match(html, /\.contact h2\{[\s\S]*?color:#fff/);
+  assert.match(html, /href="tel:\+19256658003">/);
+  assert.match(html, />\(925\) 665-8003<\/strong>/);
+  assert.match(html, /class="contact-label">Reservas<\/span>/);
 });
 
 test('renders a green WhatsApp button with icon, label, and phone number', () => {
@@ -672,12 +852,40 @@ test('renders a green WhatsApp button with icon, label, and phone number', () =>
 
   assert.match(html, /fontawesome-free@6\.7\.2\/svgs\/brands\/whatsapp\.svg/);
   assert.match(html, /class="whatsapp-icon"[^>]*alt=""/);
-  assert.match(html, /href="https:\/\/wa\.me\/19256658003"/);
+  // WhatsApp intentionally carries its own number, separate from the Reservas
+  // call line — a business's WhatsApp line need not be the same number.
+  assert.match(html, /href="https:\/\/wa\.me\/19254353077"/);
   assert.match(html, /Escríbenos por WhatsApp/);
-  assert.match(html, /\+1 925 665 8003/);
-  assert.match(html, /\.contact \.whatsapp-button\{[\s\S]*?display:flex;align-items:center;justify-content:space-between/);
-  assert.match(html, /\.contact \.whatsapp-button\{[\s\S]*?background:#087a63/);
-  assert.match(html, /\.contact \.whatsapp-copy\{[\s\S]*?text-align:left/);
+  assert.match(html, />\+1 925 435 3077<\/strong>/);
+  assert.match(html, /\.contact-button--whatsapp \.contact-icon\{background:#087a63\}/);
+  assert.match(html, /\.contact-button--call \.contact-icon\{background:var\(--crimson\)\}/);
+});
+
+test('the phone and WhatsApp actions share one contact-button layout', () => {
+  const html = h.renderHostedPage({ body: 'Día 1: BANGKOK\nLlegada.' });
+
+  assert.match(html, /fontawesome-free@6\.7\.2\/svgs\/solid\/phone\.svg/);
+  assert.equal((html.match(/class="contact-button /g) || []).length, 3);
+  assert.match(html, /\.contact-button\{[\s\S]*?border-radius:14px/);
+});
+
+test('the hosted page loads the vendored GSAP core and its init script, same-origin only', () => {
+  const html = h.renderHostedPage({ body: 'Día 1: BANGKOK\nLlegada.' });
+  const script = fs.readFileSync(path.join(__dirname, '..', 'public/vendor/hosted-contact.js'), 'utf8');
+
+  assert.match(html, /<script src="\/vendor\/gsap\.min\.js" defer><\/script>/);
+  assert.match(html, /<script src="\/vendor\/hosted-contact\.js" defer><\/script>/);
+  assert.match(html, /<main class="text">/);
+  assert.match(html, /<div class="itinerary-heading">[\s\S]*?data-share-itinerary/);
+  assert.match(html, /svgs\/solid\/share-nodes\.svg/);
+  assert.match(script, /gsap\.from\(text, \{[\s\S]*?opacity: 0,[\s\S]*?y: 30,[\s\S]*?duration: 1,[\s\S]*?ease: 'power2\.out'/);
+  assert.match(script, /if \(text && !reduceMotion\)/);
+  assert.match(html, /data-print-itinerary/);
+  assert.match(html, /svgs\/solid\/print\.svg/);
+  assert.match(script, /printButton\.addEventListener\('click',[\s\S]*?window\.print\(\)/);
+  assert.match(script, /data-toggle-details/);
+  assert.match(script, /collapseLabel[\s\S]*?expandLabel/);
+  assert.match(script, /if \(navigator\.share\)[\s\S]*?await navigator\.share\(data\)/);
 });
 
 test('handles a 30-day itinerary without a day-count limit', () => {
@@ -892,13 +1100,15 @@ test('page renders unchanged when there is no hero', () => {
 });
 
 test('escapes seller text and hero metadata', () => {
+  // The page legitimately emits two static <script src="/vendor/..."> tags of
+  // its own (the vendored GSAP init), so this checks for the exact attacker
+  // payload surviving unescaped rather than banning "<script" outright.
   const html = h.renderHostedPage({ body: 'Día 1: <script>alert(1)</script>\nTexto.' });
-  const inner = html.slice(html.indexOf('<div class="wrap">'));
-  assert.ok(!inner.includes('<script'), 'no attacker-opened tag');
-  assert.ok(html.includes('&lt;script&gt;'));
+  assert.ok(!html.includes('<script>alert(1)</script>'), 'attacker payload must not survive unescaped');
+  assert.ok(html.includes('&lt;script&gt;alert(1)&lt;/script&gt;'));
 
   const injected = h.renderHero({ ...validHero, photographerName: '"><script>alert(1)</script>' });
-  assert.ok(!injected.includes('<script'), 'photographer name must be escaped');
+  assert.ok(!injected.includes('<script>alert(1)</script>'), 'photographer name must be escaped');
 });
 
 // ── Creation flow ──────────────────────────────────────────────────────────
