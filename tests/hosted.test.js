@@ -147,6 +147,66 @@ test('heading-like prose stays paragraph text', () => {
   }
 });
 
+// ── Separator-less "glued" numbered headings ───────────────────────────────
+// The day token and its place can share one line with nothing but
+// whitespace between them and no colon/dash right after the number at all —
+// "Día 1 Toronto", "Día 2 Toronto - Toronto" (a real production example).
+
+test('recognizes a day token glued directly to its place with no separator', () => {
+  assert.deepEqual(h.matchDay('Día 1 Toronto'), { label: null, date: null, place: 'Toronto' });
+  assert.deepEqual(h.matchDay('Day 2 Bangkok'), { label: null, date: null, place: 'Bangkok' });
+});
+
+test('a glued place keeps its own interior route dash intact', () => {
+  // The dash here belongs to the place/route, not to a heading separator —
+  // it must not truncate the place the way an ordinary separator would.
+  assert.equal(h.matchDay('Día 2 Toronto - Toronto').place, 'Toronto - Toronto');
+  assert.equal(h.matchDay('Día 5 Cataratas Niagara - Toronto').place, 'Cataratas Niagara - Toronto');
+});
+
+test('glued headings still reject prose, not just a bare day token', () => {
+  for (const line of [
+    'Día 1 llegada al hotel y traslado',                    // lowercase: not a proper noun
+    'Day 1 of the conference was incredible',               // lowercase, and too long
+    'Día 1 Un Recorrido Muy Largo Por La Ciudad Completa',  // too many words
+  ]) {
+    assert.equal(h.matchDay(line), null, `should NOT be a heading: ${line}`);
+  }
+});
+
+test('parses a real separator-less 5-day paste (Toronto/Niagara)', () => {
+  const body = [
+    'Día 1 Toronto',
+    'Llegada por su cuenta.',
+    'Día 2 Toronto - Toronto',
+    'Recorrido por la ciudad.',
+    'Día 3 Toronto - Cataratas Niagara',
+    'Traslado a las cataratas.',
+    'Día 4 Cataratas Niagara - Cataratas Niagara',
+    'Excursión guiada.',
+    'Día 5 Cataratas Niagara - Toronto',
+    'Regreso al aeropuerto.',
+  ].join('\n');
+  const parsed = parse(body);
+  assert.equal(parsed.dayCount, 5);
+  assert.deepEqual(days(body).map(d => d.place), [
+    'Toronto', 'Toronto - Toronto', 'Toronto - Cataratas Niagara',
+    'Cataratas Niagara - Cataratas Niagara', 'Cataratas Niagara - Toronto',
+  ]);
+  // Before this fix, no line matched matchDay() at all, dayCount was 0, and
+  // the literal first line "Día 1 Toronto" became the title verbatim.
+  assert.notEqual(parsed.title, 'Día 1 Toronto');
+});
+
+test('the unmarked-reset guard still fires for glued headings', () => {
+  // sourceDayNumber() must recognize the same day 1 this heading style
+  // produces, or two appended tours with no marker would silently merge.
+  assert.equal(
+    h.classifyItineraries('Día 1 Roma\nx\nDía 2 Pisa\ny\nDía 1 París\nz').kind,
+    'ambiguous'
+  );
+});
+
 test('numbered headings do not print the day label twice', () => {
   // label stays null so the renderer supplies exactly one sequential "Día N".
   assert.equal(h.matchDay('Día 1: BANGKOK').label, null);
