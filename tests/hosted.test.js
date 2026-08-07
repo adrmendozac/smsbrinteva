@@ -1241,7 +1241,10 @@ test('creation persists validated Haiku structure and derives the source title',
   assert.ok(inserted.params.includes(0.006));
 });
 
-test('an itinerary with no Haiku source title uses the neutral fallback', async () => {
+test('a null Haiku title for a real itinerary is invalid and falls back to the deterministic parser', async () => {
+  // A day heading is never a title, so Haiku must always suggest one when the
+  // source has none — a null title here means the response failed
+  // validation, and the whole interpretation (not just the title) falls back.
   const body = 'Hola, revise su viaje.\nDía 1 Bangkok\nLlegada al hotel.';
   const output = {
     classification: 'itinerary',
@@ -1258,8 +1261,7 @@ test('an itinerary with no Haiku source title uses the neutral fallback', async 
     env: { ANTHROPIC_API_KEY: 'test-key' },
     log: { info: () => {}, warn: () => {} },
   }, { body });
-  assert.equal(rec.title, 'Itinerario de viaje');
-  assert.equal(rec.parseMethod, 'haiku');
+  assert.equal(rec.parseMethod, 'deterministic');
 });
 
 test('a Haiku-suggested title is persisted with suggested provenance', async () => {

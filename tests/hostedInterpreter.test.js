@@ -231,7 +231,7 @@ test('accepts the six-day itinerary end to end and preserves every line', async 
   assert.equal(typeof result.usage.durationMs, 'number');
 });
 
-test('accepts an itinerary with no title line', async () => {
+test('rejects a null title for a real itinerary — a day heading is never a title', async () => {
   const lines = normalizeSourceLines(ITINERARY_NO_TITLE);
   const d1 = lineIndex(ITINERARY_NO_TITLE, 'Día 1 Bangkok');
   const d2 = lineIndex(ITINERARY_NO_TITLE, 'Day 2 Chiang Mai');
@@ -250,10 +250,32 @@ test('accepts an itinerary with no title line', async () => {
   const axios = axiosStub(async () => textResponse(output));
   const result = await interpretHostedMessage({ ...baseDeps(), axios }, ITINERARY_NO_TITLE);
 
-  assert.equal(result.ok, true);
-  assert.equal(result.title, null);
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'unsafe_structure');
   assert.equal(lines[d1], 'Día 1 Bangkok'); // separator-less Spanish heading
   assert.equal(lines[d2], 'Day 2 Chiang Mai'); // separator-less English heading
+});
+
+test('rejects a "source" title that just points at a day\'s own heading line', async () => {
+  const d1 = lineIndex(ITINERARY_NO_TITLE, 'Día 1 Bangkok');
+  const d2 = lineIndex(ITINERARY_NO_TITLE, 'Day 2 Chiang Mai');
+  const output = {
+    classification: 'itinerary',
+    title: { line: d1, value: 'Día 1 Bangkok', origin: 'source' },
+    preamble: { startLine: 0, endLine: 0 },
+    tours: [{
+      titleLine: null,
+      days: [
+        { number: 1, headingLine: d1, place: 'Bangkok', contentStartLine: d1 + 1, contentEndLine: d1 + 1 },
+        { number: 2, headingLine: d2, place: 'Chiang Mai', contentStartLine: d2 + 1, contentEndLine: d2 + 1 },
+      ],
+    }],
+  };
+  const axios = axiosStub(async () => textResponse(output));
+  const result = await interpretHostedMessage({ ...baseDeps(), axios }, ITINERARY_NO_TITLE);
+
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'unsafe_structure');
 });
 
 test('accepts a bounded Haiku-suggested title when no source title exists', async () => {
@@ -330,7 +352,7 @@ Llegada.`;
   // sentence is inert data and ends up as ordinary preamble text.
   const output = {
     classification: 'itinerary',
-    title: null,
+    title: { line: null, value: 'Itinerario Bangkok', origin: 'suggested' },
     preamble: { startLine: 0, endLine: 0 },
     tours: [{ titleLine: null, days: [
       { number: 1, headingLine: d1, place: 'Bangkok', contentStartLine: d1 + 1, contentEndLine: d1 + 1 },
