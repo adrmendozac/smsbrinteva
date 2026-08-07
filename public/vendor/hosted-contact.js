@@ -1,5 +1,5 @@
 // Progressive enhancement for the closing sequence of a hosted itinerary page
-// (lib/hosted.js renderHostedPage): the contact card, its two buttons, and
+// (lib/hosted.js renderHostedPage): the contact card, its buttons, and
 // the site footer right after it. Every element here is fully visible and
 // usable from CSS alone — this only adds a reveal-on-scroll and tactile
 // hover/press feedback via the vendored GSAP core (gsap.min.js, loaded just
@@ -85,9 +85,9 @@
     });
   }
 
-  var shareButton = document.querySelector('[data-share-itinerary]');
-  var shareLabel = document.querySelector('[data-share-label]');
-  if (shareButton) {
+  document.querySelectorAll('[data-share-itinerary]').forEach(function (shareButton) {
+    var shareLabel = shareButton.querySelector('[data-share-label]');
+    var originalLabel = shareLabel ? shareLabel.textContent : '';
     shareButton.addEventListener('click', async function () {
       var title = document.querySelector('h1').textContent;
       var data = { title: title, text: 'Itinerario de ' + title, url: window.location.href };
@@ -98,13 +98,15 @@
           return;
         }
         await navigator.clipboard.writeText(data.url);
-        shareLabel.textContent = 'Enlace copiado';
-        window.setTimeout(function () { shareLabel.textContent = 'Compartir'; }, 2000);
+        if (shareLabel) shareLabel.textContent = 'Enlace copiado';
+        window.setTimeout(function () {
+          if (shareLabel) shareLabel.textContent = originalLabel;
+        }, 2000);
       } catch (error) {
         if (error.name !== 'AbortError') window.prompt('Copie este enlace:', data.url);
       }
     });
-  }
+  });
 
   document.querySelectorAll('.contact-button').forEach(function (button) {
     var icon = button.querySelector('.contact-icon');
