@@ -395,6 +395,47 @@ test('rejects overlapping day content ranges', () => {
   assert.equal(result.reason, 'unsafe_structure');
 });
 
+test('rejects a place that swallows the day\'s description instead of naming it', () => {
+  // Regression for the messy Peru example: "dia1 lima llegada y traslado al
+  // hotel tarde libre" with no separator between the place and its
+  // description. A model that dumps the whole remainder into "place" instead
+  // of extracting just "lima" must fail closed, not ship a day with no
+  // distinct title.
+  const body = 'PERU MAGICO\ndia1 lima llegada y traslado al hotel tarde libre';
+  const lines = normalizeSourceLines(body);
+  const output = {
+    classification: 'itinerary',
+    title: { line: 0, value: 'PERU MAGICO' },
+    preamble: null,
+    tours: [{
+      titleLine: 0,
+      days: [{
+        number: 1, headingLine: 1,
+        place: 'lima llegada y traslado al hotel tarde libre', // swallowed the description
+        contentStartLine: 1, contentEndLine: 1,
+      }],
+    }],
+  };
+  const result = validateModelOutput(output, lines);
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'unsafe_structure');
+
+  // The fix: place is just the place name, content still covers the same line.
+  const fixed = { ...output, tours: [{ ...output.tours[0], days: [{ ...output.tours[0].days[0], place: 'lima' }] }] };
+  const fixedResult = validateModelOutput(fixed, lines);
+  assert.equal(fixedResult.ok, true);
+  assert.equal(fixedResult.value.tours[0].days[0].place, 'lima');
+});
+
+test('rejects an empty place — every day requires a title', () => {
+  const lines = normalizeSourceLines(SIX_DAY_ITINERARY);
+  const output = sixDayModelOutput();
+  output.tours[0].days[0].place = '';
+  const result = validateModelOutput(output, lines);
+  assert.equal(result.ok, false);
+  assert.equal(result.reason, 'invalid_schema');
+});
+
 test('rejects an out-of-range line reference', () => {
   const lines = normalizeSourceLines(SIX_DAY_ITINERARY);
   const output = sixDayModelOutput();
