@@ -29,3 +29,7 @@ button:disabled { opacity: 0.5; cursor: default; }
 #status.ok { color: #1a7f37; }
 #status.err { color: #c0392b; }
 .hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+
+/* Brand header */
+.brand { display: inline-block; margin-bottom: 1.4rem; }
+.brand img { display: block; width: 72px; height: auto; }
