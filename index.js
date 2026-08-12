@@ -66,7 +66,7 @@ app.post('/api/login', (req, res) => {
   if (!pin) return res.status(400).json({ error: 'PIN required' });
   if (String(pin) !== String(process.env.INBOX_PIN)) {
     // The PIN itself must never reach the log table.
-    log.warn('auth', 'Intento de login con PIN incorrecto', { ip: req.ip });
+    log.warn('auth', 'Intento de login con PIN incorrecto', {ip: req.ip}).then(r =>);
     return res.status(401).json({ error: 'Invalid PIN' });
   }
   const token = jwt.sign({ role: 'agent' }, process.env.JWT_SECRET, { expiresIn: '12h' });
