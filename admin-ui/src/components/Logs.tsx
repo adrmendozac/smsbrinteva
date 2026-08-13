@@ -28,6 +28,8 @@ const LEVELS: { key: LogLevel | "all"; label: string }[] = [
   { key: "error", label: "Errores" },
 ];
 
+const LOGS_PER_PAGE = 10;
+
 // Same pill idiom as StatusPill, but for log levels.
 function LevelPill({ level }: { level: LogLevel }) {
   const color =
@@ -65,6 +67,7 @@ export function Logs() {
         level: level === "all" ? undefined : level,
         category: category === "all" ? undefined : category,
         before,
+        limit: LOGS_PER_PAGE,
       });
       // Paging appends: `before` asks for rows older than the last one on
       // screen, so the new page goes after what is already there.

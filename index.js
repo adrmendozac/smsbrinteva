@@ -4,7 +4,8 @@ const express = require('express');
 const axios = require('axios');
 const mysql = require('mysql2/promise');
 const jwt = require('jsonwebtoken');
-const { sanitizeForSMS, MMS_CAPTION_MAX } = require('./lib/sms');
+const { sanitizeForSMS, smsSegments, MMS_CAPTION_MAX } = require('./lib/sms');
+const { createThroughput } = require('./lib/throughput');
 const { createHostedMessage, buildLinkSms, classifyItineraries, registerHostedRoutes } = require('./lib/hosted');
 const { registerCampaignRoutes } = require('./lib/campaigns');
 const { registerContactRoutes } = require('./lib/contacts');
@@ -55,6 +56,14 @@ const deps = {
   env: process.env,
   sleep: ms => new Promise(r => setTimeout(r, ms))
 };
+
+// Carrier throughput budget, shared by campaigns and one-off replies — both
+// spend the same 10DLC allowance, so both must draw from the same counter.
+deps.throughput = createThroughput({
+  db,
+  env: process.env,
+  sleep: deps.sleep
+});
 
 // ── Auth: shared PIN gate ──────────────────────────────────────────────────
 
@@ -118,15 +127,31 @@ app.get('/api/logs', requireAuth, async (req, res) => {
 // what left the oversized-itinerary rejections undiagnosed for days. Check
 // `.ok`, not truthiness — the failure value is an object too.
 async function sendSMS(to, text, conversationId, sentBy = 'ai', mediaUrl = null) {
+  const segments = smsSegments(text);
   try {
+    // Replies pace against the same carrier budget as campaigns, but as
+    // kind 'reply': they obey the per-minute window and the absolute daily
+    // ceiling, never the lower campaign ceiling. A seller mid-conversation is
+    // not made to wait for tomorrow because a blast filled the day's quota —
+    // campaigns are what yield.
+    const [carrierRows] = await db.execute(
+      `SELECT carrier_network_code, carrier_checked_at FROM contacts WHERE phone = ? LIMIT 1`,
+      [to]
+    );
+    await deps.throughput.acquire(
+      deps.throughput.bucketFor(carrierRows[0]),
+      segments,
+      'reply'
+    );
+
     const { messageId } = mediaUrl
       ? await sendImage({ axios, env: process.env }, to, mediaUrl, text)
       : await sendMessage({ axios, env: process.env }, to, text);
 
     const [ins] = await db.execute(
-      `INSERT INTO messages (conversation_id, direction, body, vonage_message_id, status, sent_by)
-       VALUES (?, 'outbound', ?, ?, 'sent', ?)`,
-      [conversationId, text, messageId || null, sentBy]
+      `INSERT INTO messages (conversation_id, direction, body, vonage_message_id, status, sent_by, segments)
+       VALUES (?, 'outbound', ?, ?, 'sent', ?, ?)`,
+      [conversationId, text, messageId || null, sentBy, segments]
     );
 
     console.log(`Sent to ${to} [${sentBy}]: ${text}`);
@@ -136,9 +161,9 @@ async function sendSMS(to, text, conversationId, sentBy = 'ai', mediaUrl = null)
     let dbId = null;
     try {
       const [ins] = await db.execute(
-        `INSERT INTO messages (conversation_id, direction, body, status, sent_by)
-         VALUES (?, 'outbound', ?, 'failed', ?)`,
-        [conversationId, text, sentBy]
+        `INSERT INTO messages (conversation_id, direction, body, status, sent_by, segments)
+         VALUES (?, 'outbound', ?, 'failed', ?, ?)`,
+        [conversationId, text, sentBy, segments]
       );
       dbId = ins.insertId;
     } catch (e) {

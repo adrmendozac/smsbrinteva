@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import gsap from "gsap";
-import { useGSAP } from "@gsap/react";
-import { Check, Copy, Warning } from "@phosphor-icons/react";
+import { CheckIcon, CopyIcon, WarningIcon } from "@phosphor-icons/react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCheck, faExclamation, faXmark } from "@fortawesome/free-solid-svg-icons";
 import type { CampaignDetail, Recipient, RecipientStatus } from "../types";
 import { api } from "../lib/api";
 import { cn } from "../lib/cn";
@@ -74,46 +74,7 @@ export function Recipients({ campaignId, live }: { campaignId: number; live: boo
 
   const shown = filter === "all" ? recipients : recipients.filter((r) => r.status === filter);
 
-  // Stagger the rows in behind the panel opening. Capped so a 500-recipient
-  // campaign does not spend three seconds dealing itself out, and skipped
-  // entirely under prefers-reduced-motion.
   const listRef = useRef<HTMLDivElement>(null);
-  useGSAP(
-    () => {
-      // The component renders a spinner / empty state before the list mounts,
-      // so the scope ref can still be null when this effect fires.
-      const all = listRef.current?.querySelectorAll("tbody tr");
-      if (!all?.length) return;
-      // Cap the element count, not just the stagger window: a 500-recipient
-      // campaign would otherwise put will-change on 500 rows at once.
-      const rows = Array.from(all).slice(0, 14);
-      if (!rows.length) return;
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-        gsap.set(rows, { autoAlpha: 1, y: 0 });
-        return;
-      }
-      // fromTo, not from: the live poll and the filter pills both re-run this,
-      // and from() would animate towards whatever opacity a row currently has,
-      // leaving rows stuck part-faded when a re-run lands mid-stagger.
-      gsap.fromTo(
-        rows,
-        { autoAlpha: 0, y: 6 },
-        {
-          autoAlpha: 1,
-          y: 0,
-          duration: 0.45,
-          ease: "mass",
-          overwrite: "auto",
-          stagger: { each: 0.03, amount: Math.min(0.03 * rows.length, 0.5) },
-          // Layer-promote for the duration of the reveal, then release so the
-          // rows can be skipped by content-visibility again once at rest.
-          onStart: () => gsap.set(rows, { willChange: "transform, opacity" }),
-          onComplete: () => gsap.set(rows, { clearProps: "willChange" }),
-        }
-      );
-    },
-    { dependencies: [filter, shown.length], scope: listRef }
-  );
 
   async function copyNumbers() {
     try {
@@ -159,6 +120,7 @@ export function Recipients({ campaignId, live }: { campaignId: number; live: boo
             active={filter === s}
             onClick={() => setFilter(s)}
             color={STATUS_COLOR[s]}
+            status={s}
           >
             {recipientStatusLabel(s)} {tallies[s]}
           </Chip>
@@ -170,9 +132,9 @@ export function Recipients({ campaignId, live }: { campaignId: number; live: boo
           className="ml-auto inline-flex touch-manipulation items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs text-[var(--text-muted)] outline-none transition-[color,background-color] duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] hover:bg-[var(--surface-sunken)] hover:text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] active:scale-[0.98]"
         >
           {copied ? (
-            <Check size={14} weight="light" aria-hidden="true" />
+            <CheckIcon size={14} weight="light" aria-hidden="true" />
           ) : (
-            <Copy size={14} weight="light" aria-hidden="true" />
+            <CopyIcon size={14} weight="light" aria-hidden="true" />
           )}
           <span aria-live="polite">{copied ? "Copiados" : "Copiar números"}</span>
         </button>
@@ -220,12 +182,12 @@ function Row({ recipient: r }: { recipient: Recipient }) {
       </td>
       <td className="px-5 py-2">
         <span className="inline-flex items-center gap-1.5 whitespace-nowrap" style={{ color }}>
-          <span className="size-1.5 rounded-full" style={{ backgroundColor: color }} />
+          <RecipientStatusMark status={r.status} color={color} />
           {recipientStatusLabel(r.status)}
         </span>
         {r.error && (
           <span className="ml-2 inline-flex items-center gap-1 text-xs text-[var(--text-muted)]">
-            <Warning size={12} /> {friendlyRecipientError(r.error)}
+            <WarningIcon size={12} /> {friendlyRecipientError(r.error)}
           </span>
         )}
       </td>
@@ -240,11 +202,13 @@ function Chip({
   active,
   onClick,
   color,
+  status,
   children,
 }: {
   active: boolean;
   onClick: () => void;
   color?: string;
+  status?: RecipientStatus;
   children: ReactNode;
 }) {
   return (
@@ -253,16 +217,50 @@ function Chip({
       onClick={onClick}
       aria-pressed={active}
       className={cn(
-        "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--focus)]",
+        "inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold outline-none transition-colors focus-visible:ring-2 focus-visible:ring-[var(--focus)]",
         active
           ? "border-transparent bg-[var(--primary)] text-[var(--primary-fg)]"
           : "border-[var(--border)] text-[var(--text-muted)] hover:bg-[var(--surface-sunken)]"
       )}
     >
-      {color && !active && (
-        <span className="size-1.5 rounded-full" style={{ backgroundColor: color }} />
-      )}
+      {color && status && <RecipientStatusMark status={status} color={active ? "currentColor" : color} />}
       {children}
     </button>
+  );
+}
+
+function RecipientStatusMark({
+  status,
+  color,
+}: {
+  status: RecipientStatus;
+  color: string;
+}) {
+  if (status === "delivered") {
+    return <StatusGlyph icon={faCheck} color={color} />;
+  }
+  if (status === "failed") {
+    return <StatusGlyph icon={faXmark} color={color} />;
+  }
+  if (status === "pending") {
+    return <StatusGlyph icon={faExclamation} color={color} />;
+  }
+  return <span className="size-2 rounded-full" aria-hidden="true" style={{ backgroundColor: color }} />;
+}
+
+function StatusGlyph({
+  icon,
+  color,
+}: {
+  icon: typeof faCheck | typeof faXmark | typeof faExclamation;
+  color: string;
+}) {
+  return (
+    <FontAwesomeIcon
+      aria-hidden="true"
+      icon={icon}
+      className="w-3"
+      style={{ color }}
+    />
   );
 }

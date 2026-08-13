@@ -432,7 +432,6 @@ function ContactRow({
   const root = useRef<HTMLLIElement>(null);
   const inner = useRef<HTMLDivElement>(null);
   const fields = useRef<HTMLDivElement>(null);
-  const collapsedH = useRef(0);
   const firstDim = useRef(true);
 
   const [name, setName] = useState(contact.name ?? "");
@@ -444,21 +443,16 @@ function ContactRow({
     () => {
       if (!isEditing) return;
       if (reduceMotion()) return;
-      gsap.from(inner.current, {
-        height: collapsedH.current,
-        duration: 0.4,
-        ease: "mass",
-      });
       gsap.set(root.current, { position: "relative", zIndex: 10 });
       gsap.fromTo(
         root.current,
-        { scale: 1, boxShadow: "0 0 0 0 rgba(0,0,0,0)" },
+        { scale: 0.99, autoAlpha: 0.7 },
         {
-          scale: 1.02,
-          boxShadow: "var(--shadow-lifted)",
-          backgroundColor: "var(--surface-elevated)",
-          duration: 0.4,
+          scale: 1,
+          autoAlpha: 1,
+          duration: 0.25,
           ease: "mass",
+          overwrite: "auto",
         }
       );
       gsap.from(fields.current, {
@@ -489,7 +483,6 @@ function ContactRow({
   );
 
   function startEdit() {
-    collapsedH.current = inner.current?.offsetHeight ?? 0;
     setName(contact.name ?? "");
     setPhone(formatUsPhone(contact.phone));
     setError("");
@@ -497,28 +490,10 @@ function ContactRow({
   }
 
   function collapse(): Promise<void> {
-    return new Promise((resolve) => {
-      if (reduceMotion() || !root.current || !inner.current) return resolve();
-      gsap
-        .timeline({
-          onComplete: () => {
-            gsap.set([root.current, inner.current], { clearProps: "all" });
-            resolve();
-          },
-        })
-        .to(inner.current, { height: collapsedH.current, duration: 0.35, ease: "mass" }, 0)
-        .to(
-          root.current,
-          {
-            scale: 1,
-            boxShadow: "0 0 0 0 rgba(0,0,0,0)",
-            backgroundColor: "rgba(0,0,0,0)",
-            duration: 0.35,
-            ease: "mass",
-          },
-          0
-        );
-    });
+    // Do not tween height/shadow here: those properties force a layout/paint
+    // pass every frame in a scrollable directory. Saving/cancelling swaps the
+    // inline form immediately; its parent uses transform/opacity only on entry.
+    return Promise.resolve();
   }
 
   async function save() {
@@ -571,22 +546,13 @@ function ContactRow({
       onArchived(updated);
       return;
     }
-    gsap
-      .timeline({ onComplete: () => onArchived(updated) })
-      .to(root.current, {
-        xPercent: -110,
-        autoAlpha: 0,
-        duration: 0.4,
-        ease: "power2.in",
-      })
-      .set(root.current, { overflow: "hidden" })
-      .to(root.current, {
-        height: 0,
-        paddingTop: 0,
-        paddingBottom: 0,
-        duration: 0.25,
-        ease: "power2.inOut",
-      });
+    gsap.to(root.current, {
+      xPercent: -110,
+      autoAlpha: 0,
+      duration: 0.25,
+      ease: "power2.in",
+      onComplete: () => onArchived(updated),
+    });
   }
 
   return (

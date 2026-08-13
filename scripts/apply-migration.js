@@ -36,6 +36,8 @@ const mysql = require('mysql2/promise');
       console.log('Already applied (column exists) — OK');
     } else if (e.code === 'ER_TABLE_EXISTS_ERROR') {
       console.log('Already applied (table exists) — OK');
+    } else if (e.code === 'ER_DUP_KEYNAME') {
+      console.log('Already applied (index exists) — OK');
     } else {
       throw e;
     }

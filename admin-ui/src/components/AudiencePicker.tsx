@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { UploadSimple, MagnifyingGlass, X } from "@phosphor-icons/react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCheck, faPlus } from "@fortawesome/free-solid-svg-icons";
 import type { Contact } from "../types";
 import { parsePhonesFromFile, ImportError } from "../lib/importPhones";
 import { normalizeUsPhone, formatUsPhone } from "../lib/phone";
@@ -18,6 +20,7 @@ export function AudiencePicker({
   manualPhones,
   onManualPhones,
   preselectContactId,
+  recipientCount,
 }: {
   contacts: Contact[];
   selectedIds: Set<number>;
@@ -28,6 +31,7 @@ export function AudiencePicker({
   manualPhones: string[];
   onManualPhones: (phones: string[]) => void;
   preselectContactId?: number | null;
+  recipientCount?: number;
 }) {
   const [source, setSource] = useState<Source>("manual");
   const lastPreselect = useRef<number | null>(null);
@@ -148,9 +152,14 @@ export function AudiencePicker({
           <ContactSearch
             contacts={contacts}
             phones={manualPhones}
-            onAddPhone={(p) => {
-              if (!manualPhones.includes(p)) onManualPhones([...manualPhones, p]);
-            }}
+            recipientCount={recipientCount}
+            onTogglePhone={(p) =>
+              onManualPhones(
+                manualPhones.includes(p)
+                  ? manualPhones.filter((x) => x !== p)
+                  : [...manualPhones, p]
+              )
+            }
           />
           <ManualEntry phones={manualPhones} onPhones={onManualPhones} />
         </div>
@@ -210,7 +219,7 @@ export function AudiencePicker({
                     type="button"
                     onClick={() => onToggleContact(c.id)}
                     className={cn(
-                      "flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm",
+                      "grid w-full grid-cols-[auto_9rem_minmax(0,1fr)] items-center gap-2 rounded-md px-2.5 py-2 pr-[10%] text-left text-sm",
                       checked
                         ? "bg-[var(--surface-sunken)]"
                         : "hover:bg-[var(--surface-sunken)]"
@@ -226,9 +235,9 @@ export function AudiencePicker({
                     >
                       {checked && "✓"}
                     </span>
-                    <span className="font-phone">{c.phone}</span>
+                    <span className="w-36 shrink-0 font-satoshi text-sm text-black">{c.phone}</span>
                     {c.name && (
-                      <span className="truncate text-[var(--text-muted)]">
+                      <span className="min-w-0 truncate font-satoshi text-sm font-semibold text-black">
                         {c.name}
                       </span>
                     )}
@@ -308,11 +317,13 @@ export function AudiencePicker({
 function ContactSearch({
   contacts,
   phones,
-  onAddPhone,
+  recipientCount,
+  onTogglePhone,
 }: {
   contacts: Contact[];
   phones: string[];
-  onAddPhone: (phone: string) => void;
+  recipientCount?: number;
+  onTogglePhone: (phone: string) => void;
 }) {
   const [query, setQuery] = useState("");
 
@@ -326,45 +337,64 @@ function ContactSearch({
 
   return (
     <div>
-      <div className="relative">
-        <MagnifyingGlass
-          size={16}
-          className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
-        />
-        <input
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Buscar contacto existente…"
-          className={cn(inputClass, "pl-8")}
-        />
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <div className="relative">
+            <MagnifyingGlass
+              size={16}
+              className="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-[var(--text-muted)]"
+            />
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Buscar contacto existente…"
+              className={cn(inputClass, "pl-8")}
+            />
+          </div>
+          {query.trim() && results.length > 0 && (
+            <ul className="mt-1 max-h-40 overflow-y-auto rounded-lg border-[2.5px] border-[var(--border)] bg-white p-1">
+              {results.map((c) => {
+                const alreadyAdded = phones.includes(c.phone);
+                return (
+                  <li key={c.id}>
+                    <button
+                      type="button"
+                      onClick={() => onTogglePhone(c.phone)}
+                      className={cn(
+                        "grid w-full grid-cols-[auto_9rem_minmax(0,1fr)] items-center gap-2 rounded-md px-2.5 py-2 pr-[10%] text-left text-sm",
+                        alreadyAdded
+                          ? "bg-[var(--surface-sunken)]"
+                          : "hover:bg-[var(--surface-sunken)]"
+                      )}
+                    >
+                      <span
+                        key={alreadyAdded ? "check" : "plus"}
+                        className="w-5 shrink-0 text-center text-[var(--text-muted)]"
+                      >
+                        <FontAwesomeIcon
+                          key={alreadyAdded ? "check" : "plus"}
+                          icon={alreadyAdded ? faCheck : faPlus}
+                          className={cn(
+                            "size-3.5 animate-icon-pop",
+                            alreadyAdded && "text-[var(--primary)]"
+                          )}
+                        />
+                      </span>
+                      <span className="w-36 shrink-0 font-satoshi text-sm text-black">{c.phone}</span>
+                      <span className="min-w-0 truncate font-satoshi text-sm font-semibold text-black">{c.name}</span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+        {recipientCount !== undefined && (
+          <span className="mt-[12px] shrink-0 text-xs font-medium text-[var(--text-muted)]">
+            {recipientCount} destinatario{recipientCount === 1 ? "" : "s"}
+          </span>
+        )}
       </div>
-      {query.trim() && results.length > 0 && (
-        <ul className="mt-1 max-h-40 overflow-y-auto rounded-lg border border-[var(--border)] bg-[var(--surface)] p-1">
-          {results.map((c) => {
-            const alreadyAdded = phones.includes(c.phone);
-            return (
-              <li key={c.id}>
-                <button
-                  type="button"
-                  disabled={alreadyAdded}
-                  onClick={() => onAddPhone(c.phone)}
-                  className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm hover:bg-[var(--surface-sunken)] disabled:opacity-40 disabled:hover:bg-transparent"
-                >
-                  <span className="shrink-0 rounded border border-[var(--border)] px-1 text-xs text-[var(--text-muted)]">
-                    {alreadyAdded ? "✓" : "+"}
-                  </span>
-                  <span className="font-phone text-xs">{c.phone}</span>
-                  {c.name && (
-                    <span className="truncate text-[var(--text-muted)]">
-                      {c.name}
-                    </span>
-                  )}
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
       {query.trim() && results.length === 0 && (
         <p className="mt-1 text-xs text-[var(--text-muted)]">
           Sin contactos que coincidan
@@ -427,7 +457,7 @@ function ManualEntry({
           focuses the input. */}
       <div
         onClick={() => inputRef.current?.focus()}
-        className="flex min-h-[3rem] flex-wrap items-center gap-1.5 rounded-lg border border-[var(--border)] bg-[var(--surface)] p-2 focus-within:border-[var(--brand)] focus-within:ring-2 focus-within:ring-[var(--brand)]/30"
+        className="flex min-h-[3rem] flex-wrap items-center gap-1.5 rounded-lg border-[2.5px] border-[var(--border)] bg-white p-2 focus-within:border-[var(--brand)] focus-within:ring-2 focus-within:ring-[var(--brand)]/30"
       >
         {phones.map((p) => (
           <span
@@ -464,10 +494,9 @@ function ManualEntry({
       </div>
 
       <div className="mt-1.5 flex items-center justify-between gap-2 text-xs">
-        <span className={error ? "text-[var(--status-failed)]" : "text-[var(--text-muted)]"}>
-          {error ??
-            `${phones.length} número${phones.length === 1 ? "" : "s"} · Enter para agregar`}
-        </span>
+        {error && (
+          <span className="text-[var(--status-failed)]">{error}</span>
+        )}
         {phones.length > 0 && (
           <button
             type="button"

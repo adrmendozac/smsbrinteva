@@ -232,7 +232,8 @@ function CampaignRow({
       // Registered in main.tsx; GSAP will not parse a raw cubic-bezier string.
       const EASE = "mass";
 
-      gsap.matchMedia().add(
+      const media = gsap.matchMedia();
+      media.add(
         {
           motion: "(prefers-reduced-motion: no-preference)",
           reduced: "(prefers-reduced-motion: reduce)",
@@ -248,24 +249,24 @@ function CampaignRow({
 
           if (!expanded || !panel.current) return;
 
-          // Animate the grid track, not `height: auto`. GSAP interpolates the
-          // fraction (0fr -> 1fr) and the browser composites the resize instead
-          // of laying out the recipient list every frame.
+          // Reveal opacity only. Animating grid tracks (or height) lays out the
+          // entire recipient list every frame, which is visibly janky on a
+          // large campaign. The panel now takes its final layout immediately.
           gsap.fromTo(
             panel.current,
-            { gridTemplateRows: "0fr", autoAlpha: 0 },
+            { autoAlpha: 0 },
             {
-              gridTemplateRows: "1fr",
               autoAlpha: 1,
-              duration: reduced ? 0 : 0.65,
+              duration: reduced ? 0 : 0.25,
               ease: EASE,
               onStart: () =>
-                gsap.set(panel.current, { willChange: "grid-template-rows, opacity" }),
+                gsap.set(panel.current, { willChange: "opacity" }),
               onComplete: () => gsap.set(panel.current, { clearProps: "willChange" }),
             }
           );
         }
       );
+      return () => media.revert();
     },
     { dependencies: [expanded], scope: root }
   );
@@ -277,6 +278,7 @@ function CampaignRow({
         onClick={onToggle}
         aria-expanded={expanded}
         aria-controls={`recipients-${c.id}`}
+        aria-label={`${expanded ? "Ocultar" : "Mostrar"} mensaje completo y destinatarios de ${c.name}`}
         className="flex w-full touch-manipulation items-start gap-4 p-5 text-left outline-none transition-[background-color] duration-300 ease-[var(--ease-mass)] hover:bg-[var(--surface-sunken)]/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--focus)]"
       >
         <CaretDown
@@ -299,7 +301,16 @@ function CampaignRow({
             <span className="truncate font-medium">{c.name}</span>
             <StatusPill status={c.status} />
           </div>
-          <p className="mt-1 truncate text-sm text-[var(--text-muted)]">{c.body}</p>
+          <p
+            className={cn(
+              "mt-1 text-sm text-[var(--text-muted)]",
+              expanded
+                ? "whitespace-pre-wrap break-words leading-relaxed"
+                : "truncate"
+            )}
+          >
+            {c.body}
+          </p>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--text-muted)]">
             <span>Creada {formatDateTime(c.created_at)}</span>
             {c.scheduled_at && <span>Programada {formatDateTime(c.scheduled_at)}</span>}
@@ -314,11 +325,10 @@ function CampaignRow({
         {/* mr-auto rather than justify-between: with no cost to show, the
             archive button stays right-aligned instead of jumping left. */}
         {/* Geometry deliberately matches Button (same rounded-full, px-6 py-3,
-            text-sm font-medium) so it balances Archivar across the row, but on
-            a muted surface rather than crimson — it is a readout, not a
-            control, and an identical crimson pill would read as clickable. */}
+            text-sm font-medium) so it balances Archivar across the row. Navy
+            separates this readout from the crimson action language. */}
         {estimatedCost !== null && (
-          <span className="mr-auto inline-flex items-center justify-center rounded-full border-[5px] border-[var(--brand)] bg-[var(--surface-sunken)] px-6 py-3 text-sm font-medium tabular-nums text-[var(--text-primary)]">
+          <span className="mr-auto inline-flex items-center justify-center rounded-full bg-[#282d46] px-6 py-3 text-sm font-semibold tabular-nums text-white">
             Costo: ~${estimatedCost.toFixed(2)}
           </span>
         )}
@@ -328,18 +338,12 @@ function CampaignRow({
       </div>
 
       {expanded && (
-        // grid-template-rows: 0fr -> 1fr is a compositor-friendly reveal: the
-        // inner track resizes without a per-frame layout of the content the way
-        // an animated `height: auto` forced. The child must clip its own
-        // overflow so nothing shows past the collapsing track.
         <div
           ref={panel}
           id={`recipients-${c.id}`}
-          className="grid border-t border-[var(--border)] [grid-template-rows:0fr]"
+          className="border-t border-[var(--border)]"
         >
-          <div className="overflow-hidden">
-            <Recipients campaignId={c.id} live={live} />
-          </div>
+          <Recipients campaignId={c.id} live={live} />
         </div>
       )}
     </Card>

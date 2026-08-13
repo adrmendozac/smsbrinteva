@@ -22,7 +22,7 @@ const TABS: { key: Tab; label: string; icon: ComponentType<IconProps> }[] = [
   { key: "compose", label: "Nueva campaña", icon: PaperPlaneTilt },
   { key: "contacts", label: "Contactos", icon: AddressBook },
   { key: "history", label: "Historial", icon: ClockCounterClockwise },
-  { key: "logs", label: "Registro", icon: ListMagnifyingGlass },
+  { key: "logs", label: "Logs", icon: ListMagnifyingGlass },
 ];
 
 /**
@@ -51,7 +51,8 @@ export function Header({
   useGSAP(
     () => {
       if (!open || !panel.current) return;
-      gsap.matchMedia().add("(prefers-reduced-motion: no-preference)", () => {
+      const media = gsap.matchMedia();
+      media.add("(prefers-reduced-motion: no-preference)", () => {
         gsap.from(panel.current, { autoAlpha: 0, y: -8, duration: 0.25, ease: "mass" });
         gsap.from(panel.current!.children, {
           autoAlpha: 0,
@@ -61,6 +62,7 @@ export function Header({
           stagger: 0.05,
         });
       });
+      return () => media.revert();
     },
     { dependencies: [open] }
   );
@@ -71,10 +73,19 @@ export function Header({
   }
 
   return (
-    <div className="sticky top-0 z-30 px-4 pt-6 pb-2">
+    <>
+      {/* The navbar floats above content as it scrolls. This fixed veil gives
+          the overlap a quiet surface to fall into instead of letting form
+          controls visibly collide with the glass island. It sits below the
+          navbar but above page content and never intercepts input. */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none fixed inset-x-0 top-0 z-20 h-44 bg-[linear-gradient(to_bottom,var(--surface)_0%,color-mix(in_srgb,var(--surface)_94%,transparent)_42%,color-mix(in_srgb,var(--surface)_62%,transparent)_68%,transparent_100%)]"
+      />
+      <div className="sticky top-0 z-30 px-4 pt-6 pb-2">
       <div className="relative mx-auto w-max max-w-full">
       <header
-        className="flex w-max max-w-full items-center gap-1 rounded-full bg-white/70 p-2 backdrop-blur-2xl sm:gap-2"
+        className="flex w-max max-w-full items-center gap-1 rounded-full bg-white/95 p-2 sm:gap-2"
         style={{ boxShadow: `0 0 0 1px var(--hairline), var(--shadow-lifted)` }}
       >
         <div className="flex items-center gap-2 pl-2 pr-1">
@@ -99,10 +110,10 @@ export function Header({
 
         <button
           onClick={onLogout}
-          aria-label="Cerrar sesión"
-          className="hidden size-9 touch-manipulation items-center justify-center rounded-full text-[var(--text-muted)] outline-none transition-[background-color,color,transform] duration-300 ease-[var(--ease-mass)] hover:bg-white hover:text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] active:scale-95 md:inline-flex"
+          className="hidden touch-manipulation items-center gap-1.5 rounded-full px-3.5 py-2.5 text-[13px] font-medium text-[var(--text-muted)] outline-none transition-[background-color,color] duration-300 ease-[var(--ease-mass)] hover:bg-white/80 hover:text-[var(--text-primary)] focus-visible:ring-2 focus-visible:ring-[var(--focus)] active:scale-[0.98] md:inline-flex"
         >
           <SignOut size={16} weight="light" aria-hidden="true" />
+          Cerrar sesión
         </button>
 
         {/* Below md: a single Menu toggle in place of the nav + logout. */}
@@ -127,7 +138,7 @@ export function Header({
         <div
           id="mobile-menu"
           ref={panel}
-          className="absolute left-1/2 top-full z-10 mt-2 flex w-64 max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-col gap-1 rounded-3xl bg-white/80 p-2 backdrop-blur-2xl md:hidden"
+          className="absolute left-1/2 top-full z-10 mt-2 flex w-64 max-w-[calc(100vw-2rem)] -translate-x-1/2 flex-col gap-1 rounded-3xl bg-white p-2 md:hidden"
           style={{ boxShadow: `0 0 0 1px var(--hairline), var(--shadow-lifted)` }}
         >
           {TABS.map(({ key, label, icon: Icon }) => (
@@ -159,7 +170,8 @@ export function Header({
         </div>
       )}
       </div>
-    </div>
+      </div>
+    </>
   );
 }
 

@@ -16,6 +16,7 @@ import { AudiencePicker } from "./AudiencePicker";
 import { SchedulePicker } from "./SchedulePicker";
 import { fromPacific, nowPacific, type WallClock } from "../lib/datetime";
 import { suggestCampaignName } from "../lib/campaignName";
+import { CarrierCounters } from "./CarrierCounters";
 
 type Mode = "now" | "later";
 type Result = { kind: "ok"; text: string } | { kind: "err"; text: string } | null;
@@ -277,11 +278,7 @@ export function Composer({
 
         {/* Naming the campaign and choosing who receives it are separate steps,
             so the audience block starts further down than the card's own rhythm. */}
-        <Field
-          className="pt-5"
-          label="Audiencia"
-          hint={`${approxRecipients} destinatario${approxRecipients === 1 ? "" : "s"}`}
-        >
+        <Field className="pt-[25px]" label="Audiencia">
           <AudiencePicker
             contacts={contacts}
             selectedIds={selectedIds}
@@ -292,15 +289,18 @@ export function Composer({
             manualPhones={manualPhones}
             onManualPhones={setManualPhones}
             preselectContactId={preselectContactId}
+            recipientCount={approxRecipients}
           />
+          <CarrierCounters />
         </Field>
       </Card>
 
-      <Card className="space-y-3">
+      <Card className="space-y-3 pb-5">
         <Field
-          label={media ? "Mensaje (pie de foto)" : "Mensaje"}
+          label={media ? "Mensaje (pie de foto)" : "Escribe un mensaje"}
+          className="[&>div]:!mb-5"
           hint={
-            <span className={overCaption ? "text-[var(--status-failed)]" : undefined}>
+            <span className={cn(overCaption ? "text-[var(--status-failed)]" : undefined, "font-satoshi tabular-nums")}>
               {media
                 ? `${sanitized.length}/${MMS_CAPTION_MAX} car. · MMS`
                 : `${sanitized.length} car. · ${segments} SMS`}
@@ -527,4 +527,3 @@ export function Composer({
     </div>
   );
 }
-

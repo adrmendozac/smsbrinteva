@@ -503,7 +503,7 @@ function TimeInput({
           e.currentTarget.blur();
         }
       }}
-      className="w-24 rounded-lg border border-[var(--border)] bg-[var(--surface)] px-2 py-1.5 text-center text-sm tabular-nums outline-none focus-visible:border-[var(--focus)] focus-visible:ring-2 focus-visible:ring-[var(--focus)]/30"
+      className="w-24 rounded-lg border-[2.5px] border-[var(--border)] bg-white px-2 py-1.5 text-center text-sm tabular-nums outline-none focus-visible:border-[var(--focus)] focus-visible:ring-2 focus-visible:ring-[var(--focus)]/30"
     />
   );
 }

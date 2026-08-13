@@ -1,7 +1,7 @@
 import type { ButtonHTMLAttributes, ReactNode, Ref } from "react";
 import { useRef } from "react";
-import gsap from "gsap";
-import { useGSAP } from "@gsap/react";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { faCheck, faExclamation, faXmark } from "@fortawesome/free-solid-svg-icons";
 import { cn } from "../lib/cn";
 
 type Variant = "primary" | "secondary" | "ghost" | "brand";
@@ -121,30 +121,14 @@ export function Card({
     else if (ref) (ref as { current: HTMLDivElement | null }).current = node;
   };
 
-  // Every card rises into place on mount. Skipped under prefers-reduced-motion;
-  // runs once (no deps) so re-renders — expanding a campaign, a poll tick — do
-  // not replay it.
-  useGSAP(
-    () => {
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-      gsap.from(shell.current, {
-        opacity: 0,
-        y: 30,
-        duration: 1,
-        ease: "power2.out",
-      });
-    },
-    { scope: shell }
-  );
-
   return (
     <div
       ref={setRef}
-      className={cn("p-1.5", className)}
+      className={cn("relative z-0 p-1.5", className)}
       style={{
         borderRadius: "var(--r-shell)",
         background: "rgba(255,255,255,0.55)",
-        boxShadow: `0 0 0 1px var(--hairline), var(--shadow-ambient)`,
+        boxShadow: `0 0 0 1px var(--hairline), var(--shadow-card)`,
       }}
     >
       <div
@@ -173,10 +157,18 @@ export function StatusPill({ status }: { status: string }) {
       : "var(--status-draft)";
   return (
     <span
-      className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium"
-      style={{ color, backgroundColor: `color-mix(in srgb, ${color} 14%, transparent)` }}
+      className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold tracking-[-0.01em] shadow-[inset_0_0_0_1px_color-mix(in_srgb,currentColor_14%,transparent)]"
+      style={{ color, backgroundColor: `color-mix(in srgb, ${color} 12%, transparent)` }}
     >
-      <span className="size-1.5 rounded-full" style={{ backgroundColor: color }} />
+      {status === "completed" || status === "failed" || status === "sending" ? (
+        <FontAwesomeIcon
+          aria-hidden="true"
+          icon={status === "completed" ? faCheck : status === "failed" ? faXmark : faExclamation}
+          className="w-3"
+        />
+      ) : (
+        <span className="size-2 rounded-full bg-current" />
+      )}
       {label(status)}
     </span>
   );
@@ -210,7 +202,7 @@ export function Field({
   return (
     <label className={`block ${className}`}>
       <div className="mb-1.5 flex items-baseline justify-between">
-        <span className="text-sm font-medium text-[var(--text-primary)]">
+        <span className="font-satoshi text-base font-semibold text-[var(--text-primary)]">
           {label}
           {/* Decorative only — the control itself carries `required`, which is
               what assistive tech announces. */}
@@ -253,4 +245,4 @@ export function Eyebrow({ children }: { children: ReactNode }) {
 }
 
 export const inputClass =
-  "w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--text-muted)] focus-visible:border-[var(--focus)] focus-visible:ring-2 focus-visible:ring-[var(--focus)]/30";
+  "w-full rounded-lg border-[2.5px] border-[var(--border)] bg-white px-3 py-2 text-sm text-[#282d46] outline-none placeholder:text-[var(--text-muted)] focus-visible:border-[var(--focus)] focus-visible:ring-2 focus-visible:ring-[var(--focus)]/30";

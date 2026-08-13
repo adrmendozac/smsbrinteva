@@ -12,7 +12,7 @@ import { Contacts } from "./components/Contacts";
 import { Logs } from "./components/Logs";
 import { Footer } from "./components/Footer";
 import { cn } from "./lib/cn";
-import { Eyebrow, Spinner } from "./components/ui";
+import { Spinner } from "./components/ui";
 
 export default function App() {
   const [authed, setAuthed] = useState(isAuthenticated());
@@ -103,13 +103,13 @@ export default function App() {
     // viewport wider (which shows up as a must-zoom-out horizontal scroll). clip
     // — unlike hidden — does not create a scroll container, so the sticky header
     // and sticky rail keep working.
-    // flex-col layout; the footer is position:fixed so it stays at viewport
-    // bottom regardless of scroll. pb-24 on main keeps content from hiding
-    // behind it.
+    // flex-col layout; flex-1 on main pushes the footer to the bottom of the
+    // viewport on short pages, and it flows with content once the page grows.
+    // pb-24 on main is bottom breathing room before the footer.
     <div className="flex min-h-full flex-col overflow-x-clip">
       <Header tab={tab} onTab={setTab} onLogout={logout} />
 
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-12 pb-24 sm:pt-16 sm:pb-28">
+      <main className={cn("mx-auto w-full max-w-6xl flex-1 px-4 pt-12 sm:pt-16", tab === "compose" ? "pb-8" : "pb-24 sm:pb-28")}>
         <div className="grid gap-10 md:grid-cols-12 md:gap-12">
           <Rail
             tab={tab}
@@ -232,10 +232,10 @@ function Rail({
   const sent = campaigns.reduce((n, c) => n + (c.sent_count ?? 0), 0);
 
   const copy = {
-    compose: { eyebrow: "Envío", title: ["Escribe", "una campaña"] },
-    contacts: { eyebrow: "Directorio", title: ["Tus", "contactos"] },
-    history: { eyebrow: "Registro", title: ["Todo lo", "que enviaste"] },
-    logs: { eyebrow: "logs", title: ["Registro de", "logs"] },
+    compose: { title: ["Escribe", "una campaña"] },
+    contacts: { title: ["Lista de", "contactos"] },
+    history: { title: ["Historial de", "envíos"] },
+    logs: { title: ["Registro de", "logs"] },
   }[tab];
 
   return (
@@ -245,21 +245,19 @@ function Rail({
       ref={root}
       className="min-w-0 text-center md:col-span-5 md:sticky md:top-28 md:self-start md:text-left lg:col-span-4"
     >
-      <Eyebrow>{copy.eyebrow}</Eyebrow>
-
       <h1 className="mt-5 text-pretty text-4xl font-semibold leading-[0.95] tracking-[-0.03em] sm:text-5xl lg:text-6xl">
         {copy.title[0]}
         <br />
         {copy.title[1]}
       </h1>
 
-      <dl className="mt-8 flex flex-wrap justify-center gap-6 sm:gap-8 md:justify-start">
+      <dl className="mt-8 flex flex-col items-center gap-6 md:items-start">
         {tab !== "logs" && (
           <div>
-            <dt className="text-xs text-[var(--text-muted)]">
+            <dt className="text-xs font-medium text-black">
               {tab === "history" ? "Campañas" : "Reciben mensajes"}
             </dt>
-            <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-tight">
+            <dd className="mt-1 font-satoshi text-3xl font-semibold tabular-nums tracking-tight">
               {tab === "history"
                 ? campaigns.length
                 : (contactCounts?.reachable ?? contacts.length)}
@@ -268,7 +266,7 @@ function Rail({
         )}
         {tab === "compose" && balanceError && (
           <div>
-            <dt className="text-xs text-[var(--text-muted)]">Saldo Vonage</dt>
+            <dt className="text-xs font-medium text-black">Saldo Vonage</dt>
             <dd className="mt-1 text-sm text-[var(--status-failed)]">
               No se pudo cargar el saldo
             </dd>
@@ -276,9 +274,9 @@ function Rail({
         )}
         {tab === "compose" && balance !== null && (
           <div>
-            <dt className="text-xs text-[var(--text-muted)]">Saldo Vonage</dt>
+            <dt className="text-xs font-medium text-black">Saldo Vonage</dt>
             <dd
-              className="mt-1 text-3xl font-semibold tabular-nums tracking-tight"
+              className="mt-1 font-satoshi text-3xl font-extrabold tabular-nums tracking-tight"
               style={{
                 color:
                   Number(balance) < LOW_BALANCE_USD
@@ -297,8 +295,8 @@ function Rail({
         )}
         {tab === "history" && (
           <div>
-            <dt className="text-xs text-[var(--text-muted)]">Mensajes enviados</dt>
-            <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-tight text-[var(--brand)]">
+            <dt className="text-xs font-medium text-black">Mensajes enviados</dt>
+            <dd className="mt-1 font-satoshi text-3xl font-semibold tabular-nums tracking-tight text-[var(--brand)]">
               {sent}
             </dd>
           </div>
@@ -308,8 +306,8 @@ function Rail({
             depends on which tab you are looking at. */}
         {tab !== "logs" && tab !== "history" && contactCounts && (
           <div>
-            <dt className="text-xs text-[var(--text-muted)]">No reciben mensajes</dt>
-            <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-tight text-[var(--brand)]">
+            <dt className="text-xs font-medium text-black">No reciben mensajes</dt>
+            <dd className="mt-1 font-satoshi text-3xl font-semibold tabular-nums tracking-tight text-[var(--brand)]">
               {contactCounts.optedOut}
             </dd>
           </div>
@@ -318,8 +316,8 @@ function Rail({
             on. With this the three numbers account for every contact. */}
         {tab === "contacts" && contactCounts && (
           <div>
-            <dt className="text-xs text-[var(--text-muted)]">Archivados</dt>
-            <dd className="mt-1 text-3xl font-semibold tabular-nums tracking-tight text-[var(--text-muted)]">
+            <dt className="text-xs font-medium text-black">Archivados</dt>
+            <dd className="mt-1 font-satoshi text-3xl font-semibold tabular-nums tracking-tight text-[var(--text-muted)]">
               {contactCounts.archived}
             </dd>
           </div>

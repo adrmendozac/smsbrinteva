@@ -130,11 +130,12 @@ export const api = {
       currency: string;
     }>("/api/account/balance"),
   // Newest-first page of the server event log. `before` pages older rows.
-  getLogs: (params: { level?: string; category?: string; before?: number } = {}) => {
+  getLogs: (params: { level?: string; category?: string; before?: number; limit?: number } = {}) => {
     const qs = new URLSearchParams();
     if (params.level) qs.set("level", params.level);
     if (params.category) qs.set("category", params.category);
     if (params.before) qs.set("before", String(params.before));
+    if (params.limit) qs.set("limit", String(params.limit));
     const q = qs.toString();
     return request<LogPage>(`/api/logs${q ? `?${q}` : ""}`);
   },
