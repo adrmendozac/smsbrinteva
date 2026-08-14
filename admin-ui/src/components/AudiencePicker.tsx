@@ -10,6 +10,8 @@ import { inputClass, Spinner } from "./ui";
 
 type Source = "contacts" | "manual" | "csv";
 
+const BULK_CONTACTS_VISIBLE = 25;
+
 export function AudiencePicker({
   contacts,
   selectedIds,
@@ -34,6 +36,7 @@ export function AudiencePicker({
   recipientCount?: number;
 }) {
   const [source, setSource] = useState<Source>("manual");
+  const [visibleLimit, setVisibleLimit] = useState(BULK_CONTACTS_VISIBLE);
   const lastPreselect = useRef<number | null>(null);
   useEffect(() => {
     if (preselectContactId != null && preselectContactId !== lastPreselect.current) {
@@ -59,6 +62,19 @@ export function AudiencePicker({
   // matches, not the whole book — selecting people the user cannot see would
   // mean sending them a real SMS.
   const filteredIds = useMemo(() => filtered.map((c) => c.id), [filtered]);
+  // Keep the bulk picker responsive for a directory with thousands of rows.
+  // Selection still operates on all `filtered` contacts; this limits only the
+  // mounted rows in the scrollable list.
+  const visibleContacts = useMemo(
+    () => filtered.slice(0, visibleLimit),
+    [filtered, visibleLimit]
+  );
+
+  // New searches begin with a compact result set rather than retaining a large
+  // number of mounted rows from the previous query.
+  useEffect(() => {
+    setVisibleLimit(BULK_CONTACTS_VISIBLE);
+  }, [query]);
   const allFilteredSelected =
     filtered.length > 0 && filteredIds.every((id) => selectedIds.has(id));
   const searching = query.trim() !== "";
@@ -211,7 +227,7 @@ export function AudiencePicker({
                 Sin contactos
               </li>
             )}
-            {filtered.map((c) => {
+            {visibleContacts.map((c) => {
               const checked = selectedIds.has(c.id);
               return (
                 <li key={c.id}>
@@ -219,7 +235,7 @@ export function AudiencePicker({
                     type="button"
                     onClick={() => onToggleContact(c.id)}
                     className={cn(
-                      "grid w-full grid-cols-[auto_9rem_minmax(0,1fr)] items-center gap-2 rounded-md px-2.5 py-2 pr-[10%] text-left text-sm",
+                      "grid w-full grid-cols-[auto_7rem_minmax(0,1fr)] items-center gap-2 rounded-md px-2.5 py-2 pr-[10%] text-left text-sm",
                       checked
                         ? "bg-[var(--surface-sunken)]"
                         : "hover:bg-[var(--surface-sunken)]"
@@ -235,7 +251,7 @@ export function AudiencePicker({
                     >
                       {checked && "✓"}
                     </span>
-                    <span className="w-36 shrink-0 font-satoshi text-sm text-black">{c.phone}</span>
+                    <span className="w-28 shrink-0 font-satoshi text-sm text-black">{c.phone}</span>
                     {c.name && (
                       <span className="min-w-0 truncate font-satoshi text-sm font-semibold text-black">
                         {c.name}
@@ -245,6 +261,18 @@ export function AudiencePicker({
                 </li>
               );
             })}
+            {filtered.length > visibleContacts.length && (
+              <li className="px-3 py-2 text-center text-xs text-[var(--text-muted)]">
+                Mostrando {visibleContacts.length} de {filtered.length}.
+                <button
+                  type="button"
+                  onClick={() => setVisibleLimit((limit) => limit + BULK_CONTACTS_VISIBLE)}
+                  className="ml-1.5 font-semibold text-[var(--focus)] hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus)]"
+                >
+                  Mostrar más
+                </button>
+              </li>
+            )}
           </ul>
         </div>
       )}
@@ -338,7 +366,7 @@ function ContactSearch({
   return (
     <div>
       <div className="flex items-start gap-2">
-        <div className="min-w-0 flex-1">
+        <div className="relative min-w-0 flex-1">
           <div className="relative">
             <MagnifyingGlass
               size={16}
@@ -352,41 +380,53 @@ function ContactSearch({
             />
           </div>
           {query.trim() && results.length > 0 && (
-            <ul className="mt-1 max-h-40 overflow-y-auto rounded-lg border-[2.5px] border-[var(--border)] bg-white p-1">
-              {results.map((c) => {
-                const alreadyAdded = phones.includes(c.phone);
-                return (
-                  <li key={c.id}>
-                    <button
-                      type="button"
-                      onClick={() => onTogglePhone(c.phone)}
-                      className={cn(
-                        "grid w-full grid-cols-[auto_9rem_minmax(0,1fr)] items-center gap-2 rounded-md px-2.5 py-2 pr-[10%] text-left text-sm",
-                        alreadyAdded
-                          ? "bg-[var(--surface-sunken)]"
-                          : "hover:bg-[var(--surface-sunken)]"
-                      )}
-                    >
-                      <span
-                        key={alreadyAdded ? "check" : "plus"}
-                        className="w-5 shrink-0 text-center text-[var(--text-muted)]"
+            <div
+              role="listbox"
+              aria-label="Resultados de contactos"
+              className="absolute inset-x-0 top-full z-10 mt-2 overflow-hidden rounded-2xl bg-white shadow-[var(--shadow-lifted)] ring-1 ring-[var(--hairline)]"
+            >
+              <div className="border-b border-[var(--hairline)] px-4 py-2 text-xs font-medium text-[var(--text-muted)]">
+                {results.length} contacto{results.length === 1 ? "" : "s"} encontrado
+                {results.length === 1 ? "" : "s"}
+              </div>
+              <ul className="max-h-52 overflow-y-auto py-1.5">
+                {results.map((c) => {
+                  const alreadyAdded = phones.includes(c.phone);
+                  return (
+                    <li key={c.id}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={alreadyAdded}
+                        onClick={() => onTogglePhone(c.phone)}
+                        className={cn(
+                          "grid w-full grid-cols-[auto_7rem_minmax(0,1fr)] items-center gap-2 px-4 py-2.5 text-left text-sm transition-colors",
+                          alreadyAdded
+                            ? "bg-[var(--surface-sunken)]"
+                            : "hover:bg-[var(--surface-sunken)]"
+                        )}
                       >
-                        <FontAwesomeIcon
+                        <span
                           key={alreadyAdded ? "check" : "plus"}
-                          icon={alreadyAdded ? faCheck : faPlus}
-                          className={cn(
-                            "size-3.5 animate-icon-pop",
-                            alreadyAdded && "text-[var(--primary)]"
-                          )}
-                        />
-                      </span>
-                      <span className="w-36 shrink-0 font-satoshi text-sm text-black">{c.phone}</span>
-                      <span className="min-w-0 truncate font-satoshi text-sm font-semibold text-black">{c.name}</span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+                          className="w-5 shrink-0 text-center text-[var(--text-muted)]"
+                        >
+                          <FontAwesomeIcon
+                            key={alreadyAdded ? "check" : "plus"}
+                            icon={alreadyAdded ? faCheck : faPlus}
+                            className={cn(
+                              "size-3.5 animate-icon-pop",
+                              alreadyAdded && "text-[var(--primary)]"
+                            )}
+                          />
+                        </span>
+                        <span className="w-28 shrink-0 font-satoshi text-sm text-black">{c.phone}</span>
+                        <span className="min-w-0 truncate font-satoshi text-sm font-semibold text-black">{c.name}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
           )}
         </div>
         {recipientCount !== undefined && (

@@ -53,6 +53,9 @@ const balance: AccountBalanceResponse = {
   autoReload: false,
   pricePerSegment: null,
   currency: null,
+  remainingCampaignSegments: null,
+  dailyCampaignSegmentLimit: 1200,
+  segmentsPerMinuteLimit: 50,
 };
 
 const logs: LogPage = { logs: [], nextBefore: null };
@@ -79,8 +82,8 @@ const customWithOptional: Infer<typeof customSchema> = {
 // @ts-expect-error contactIds is an array on the wire; validation never coerces it.
 const invalidRequest: CreateCampaignRequest = { ...campaignRequest, contactIds: 7 };
 
-// @ts-expect-error paused is not a campaign status.
-const invalidCampaign: Campaign = { ...campaign, status: "paused" };
+// @ts-expect-error unknown is not a campaign status.
+const invalidCampaign: Campaign = { ...campaign, status: "unknown" };
 
 // @ts-expect-error required is not optional in an inferred object schema.
 const invalidCustom: Infer<typeof customSchema> = { nullable: null, choice: "now" };
