@@ -20,9 +20,13 @@ ALTER TABLE contacts ADD COLUMN carrier_checked_at DATETIME NULL;
 -- 'paused' = deferred by the daily budget, with recipients still pending.
 -- Deliberately distinct from 'failed': nothing went wrong and the scheduler
 -- will drain the rest automatically.
+-- Nullability and default deliberately match the column as it already exists in
+-- production (NULL allowed, default 'draft'): this migration is only here to
+-- add 'paused' to the enum, and tightening the column at the same time would be
+-- an unrelated change riding along on a schema edit.
 ALTER TABLE broadcasts
   MODIFY status ENUM('draft','scheduled','sending','paused','completed','failed')
-  NOT NULL DEFAULT 'draft';
+  NULL DEFAULT 'draft';
 
 -- The drain tick queries these every minute.
 CREATE INDEX idx_broadcast_recipients_sent_at ON broadcast_recipients (sent_at);
