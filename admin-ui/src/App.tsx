@@ -28,6 +28,11 @@ export default function App() {
   // flips true only once the request has actually failed, so the Rail and
   // Composer can say so explicitly instead of the widget just never appearing.
   const [balanceError, setBalanceError] = useState(false);
+  // Segments a campaign may still spend today against the carrier's daily cap.
+  // Polled alongside the balance so the Composer can warn before a send that a
+  // large blast will finish tomorrow, rather than the seller discovering a
+  // paused campaign afterwards.
+  const [segmentBudget, setSegmentBudget] = useState<{ remaining: number | null; limit: number } | null>(null);
   const [preselectContactId, setPreselectContactId] = useState<number | null>(null);
 
   // Fetched on login, then polls every 60 s so the Rail balance stat and the
@@ -42,11 +47,16 @@ export default function App() {
         .then((b) => {
           setBalance(b.balance);
           setPricePerSegment(b.pricePerSegment);
+          setSegmentBudget({
+            remaining: b.remainingCampaignSegments,
+            limit: b.dailyCampaignSegmentLimit,
+          });
           setBalanceError(false);
         })
         .catch(() => {
           setBalance(null);
           setPricePerSegment(null);
+          setSegmentBudget(null);
           setBalanceError(true);
         });
     }
@@ -135,6 +145,7 @@ export default function App() {
                   onCreated={onCreated}
                   balance={balance}
                   pricePerSegment={pricePerSegment}
+                  segmentBudget={segmentBudget}
                   balanceError={balanceError}
                   preselectContactId={preselectContactId}
                   onConsumePreselect={() => setPreselectContactId(null)}

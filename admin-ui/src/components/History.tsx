@@ -74,8 +74,10 @@ export function History({
   }, [load, refreshSignal]);
 
   // Poll while anything is in flight so live counts update.
+  // 'paused' counts as in flight: the scheduler drains it a minute at a time,
+  // so the counts keep moving even though nothing is actively sending.
   const inFlight = campaigns.some(
-    (c) => c.status === "sending" || c.status === "scheduled"
+    (c) => c.status === "sending" || c.status === "scheduled" || c.status === "paused"
   );
   useEffect(() => {
     if (!inFlight) return;
@@ -209,7 +211,9 @@ function CampaignRow({
   onArchiveToggle: () => void;
   pricePerSegment: string | null;
 }) {
-  const live = c.status === "sending";
+  // A paused campaign is still progressing — the scheduler resumes it every
+  // minute as the carrier budget allows — so its recipient list keeps polling.
+  const live = c.status === "sending" || c.status === "paused";
 
   // Based on sent_count, not total_count: this is what the campaign cost, not
   // a forecast. Hidden for MMS — the price feeding this only covers SMS, so an

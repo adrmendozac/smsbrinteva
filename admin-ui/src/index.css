@@ -110,6 +110,10 @@
   --status-draft: #6b6f7d;
   --status-scheduled: #066aab;
   --status-sending: #d97706;
+  /* Paused is a waiting state, not a failure: it shares the scheduled family
+     (blue) rather than the failed red, because the campaign resumes on its
+     own once the daily carrier budget rolls over. */
+  --status-paused: #0e7490;
   --status-completed: #059669;
   /* Distinct from --brand on purpose: crimson means "Brinteva", red means
      "this failed". Too close and a failed row reads as branding. */

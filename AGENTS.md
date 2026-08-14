@@ -22,6 +22,7 @@ Vite + Tailwind 4 admin UI in `admin-ui/`.
 - Logging goes through `lib/logs.js` (`deps.log` injected, fire-and-forget, never log secrets like the PIN). Categories mirror `CATEGORIES` in `admin-ui/src/components/Logs.tsx`.
 - `shared/api-contract.js` (+ `.d.ts`) is the CommonJS-and-TypeScript-shared source of truth for the admin API request/response shapes; `admin-ui/src/lib/api-contract.typecheck.ts` is a compile-only check that the `.d.ts` and the frontend's own usage stay aligned.
 - Never commit secrets; config lives in env vars (PIN, JWT_SECRET, Kommo tokens, Vonage keys).
+- Outbound volume is metered in **segments**, never messages, and every send path must go through `lib/throughput.js` — campaigns via `runCampaign`, one-off/Kommo replies via `sendSMS` in `index.js`. Both spend the same 10DLC carrier allowance, so a new send path that skips the limiter silently re-creates the 2026-08-11 outage (5,530 segments submitted at once, account blocked with Vonage error 99 for two days). Unknown carrier always falls in the strict T-Mobile bucket; env vars can only lower the limits, never raise them past the carrier ceiling.
 - There is no local MySQL — backend changes are statically verified only.
 - `main` is the only long-lived branch. Land feature branches with a merge (or delete after merge) rather than letting them linger — `feature/shared-api-contract` and `logs-feature` sat unmerged/stale for two days before a 2026-08-05 cleanup caught them, one of them carrying real unmerged work.
 

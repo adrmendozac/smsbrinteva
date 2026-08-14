@@ -85,6 +85,13 @@ INBOX_PIN
 # Envío
 SEND_RATE_PER_SEC       # throttling del motor de envío
 DRY_RUN                 # 1 = no llama a Vonage, simula message ids
+
+# Límites de throughput por operador (segmentos, no mensajes).
+# Los valores por defecto viven en lib/throughput.js; el .env sólo puede
+# BAJARLOS — nunca subirlos por encima del tope real del operador.
+SEGMENTS_PER_MINUTE               # def. 50 (tope AT&T: 75/min)
+TMOBILE_SEGMENTS_PER_DAY          # def. 1500 (tope T-Mobile: 2000/día)
+TMOBILE_CAMPAIGN_SEGMENTS_PER_DAY # def. 1200; el resto queda para los vendedores
 AI_AUTOREPLY            # 1 = respuesta automática; 0 = contestan los vendedores
 
 # Mensajes largos alojados
@@ -255,6 +262,38 @@ motor **vuelve a verificar** el opt-in de cada destinatario justo antes de
 enviar (si cambió, la fila queda como `opted_out`). Los envíos se espacian según
 `SEND_RATE_PER_SEC`, un fallo individual no aborta la campaña, y el error de
 Vonage se guarda por destinatario.
+
+### Límite de throughput por operador
+
+El 11–12 de agosto de 2026 una campaña de 1.112 destinatarios × 5 segmentos
+(5.530 segmentos de golpe) disparó el sistema antifraude de Vonage: todo el
+tráfico fue rechazado con **error 99** durante dos días. `lib/throughput.js`
+existe para que eso no vuelva a pasar.
+
+Se cuenta en **segmentos**, que es la unidad que miden los operadores, y en dos
+cubetas: los números de T-Mobile —y **todos** los que aún no tienen operador
+resuelto— usan el presupuesto diario estricto (tope real: 2.000/día); el resto
+sólo se limita por minuto. Cuando una campaña agota el presupuesto del día pasa
+a `paused`, sus destinatarios siguen en `pending`, y el tick del scheduler la
+reanuda sola al día siguiente. Un rechazo por throughput (error 99 o HTTP 429)
+también pausa: la fila **no** se marca `failed`, porque el problema es de la
+cuenta y no del destinatario.
+
+Las respuestas de los vendedores en Kommo gastan el mismo cupo del operador, así
+que también se contabilizan; nunca se bloquean, porque las campañas ceden
+primero (`TMOBILE_CAMPAIGN_SEGMENTS_PER_DAY` < `TMOBILE_SEGMENTS_PER_DAY`).
+
+El operador de cada contacto se resuelve **una sola vez** con Number Insight
+Standard y se guarda en `contacts.carrier_*`:
+
+```
+node scripts/backfill-carriers.js --dry-run --limit 20   # revisión previa
+node scripts/backfill-carriers.js                        # resolución real
+```
+
+Es reanudable (sólo toca contactos sin resolver o con más de 90 días de
+antigüedad — los números se portan) y aborta de inmediato si las credenciales
+son inválidas, en vez de gastar una consulta por contacto.
 
 Las campañas se reflejan en Kommo al enviarse, pero **no** se escriben en
 `messages`, así que no aparecen dentro del hilo de conversación.

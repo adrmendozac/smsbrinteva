@@ -128,6 +128,11 @@ export const api = {
       autoReload: boolean;
       pricePerSegment: string;
       currency: string;
+      // Campaign segments left today against the carrier's daily cap. null
+      // when that query failed — it never blocks the balance itself.
+      remainingCampaignSegments: number | null;
+      dailyCampaignSegmentLimit: number;
+      segmentsPerMinuteLimit: number;
     }>("/api/account/balance"),
   // Newest-first page of the server event log. `before` pages older rows.
   getLogs: (params: { level?: string; category?: string; before?: number; limit?: number } = {}) => {

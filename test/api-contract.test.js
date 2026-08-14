@@ -240,7 +240,7 @@ test('validates archive request', () => {
   assertInvalid(contracts.archiveRequest, { archived: 'true' }, ['archived']);
 });
 
-const campaignStatuses = ['draft', 'scheduled', 'sending', 'completed', 'failed'];
+const campaignStatuses = ['draft', 'scheduled', 'sending', 'paused', 'completed', 'failed'];
 const recipientStatuses = ['pending', 'sent', 'delivered', 'failed', 'opted_out'];
 
 function campaignValue(overrides = {}) {
@@ -285,7 +285,9 @@ test('validates campaign statuses and nullable response fields', () => {
     archived_at: '2026-08-05T12:00:00Z',
   }));
   assertValid(contracts.campaignList, [campaignValue()]);
-  assertInvalid(contracts.campaign, campaignValue({ status: 'paused' }), ['status']);
+  // 'paused' became a real status with the carrier throughput budget; pick a
+  // status that is still not in the enum.
+  assertInvalid(contracts.campaign, campaignValue({ status: 'cancelled' }), ['status']);
   assertInvalid(contracts.campaign, campaignValue({ media_url: 'ftp://example.com/trip.jpg' }), ['media_url']);
 });
 

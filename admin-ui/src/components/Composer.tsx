@@ -33,6 +33,7 @@ export function Composer({
   onCreated,
   balance,
   pricePerSegment,
+  segmentBudget,
   balanceError,
   preselectContactId,
   onConsumePreselect,
@@ -41,6 +42,9 @@ export function Composer({
   onCreated: () => void;
   balance: string | null;
   pricePerSegment: string | null;
+  // Segments still available today against the carrier's daily cap, and the
+  // cap itself. null while loading or when the budget query failed.
+  segmentBudget: { remaining: number | null; limit: number } | null;
   balanceError: boolean;
   preselectContactId?: number | null;
   onConsumePreselect?: () => void;
@@ -113,6 +117,17 @@ export function Composer({
       : null;
   const overBalance =
     estimatedCost !== null && balance !== null && estimatedCost > Number(balance);
+
+  // Carriers meter segments, not messages: a 686-character body is 5 segments
+  // per recipient, so 1,112 recipients is 5,530 segments — the shape of the
+  // send that got the account blocked on 2026-08-11. Show the total against
+  // today's remaining allowance so an oversized blast is understood before it
+  // is launched, not after it pauses.
+  const totalSegments = approxRecipients * segments;
+  const overDailyBudget =
+    segmentBudget !== null &&
+    segmentBudget.remaining !== null &&
+    totalSegments > segmentBudget.remaining;
 
   async function doUpload(file: File, onConflict?: "copy" | "replace") {
     setResult(null);
@@ -437,7 +452,7 @@ export function Composer({
         <div
           role="tablist"
           aria-label="Cuándo enviar"
-          className="inline-flex rounded-full bg-[var(--surface-sunken)] p-1"
+          className="flex justify-center rounded-full bg-[var(--surface-sunken)] p-1"
         >
           {(
             [
@@ -498,6 +513,14 @@ export function Composer({
             Costo estimado: ~${estimatedCost.toFixed(2)}
             {balance !== null && ` (saldo: $${Number(balance).toFixed(2)})`}
             {overBalance && " — supera el saldo disponible"}
+          </p>
+        )}
+
+        {overDailyBudget && segmentBudget?.remaining !== null && (
+          <p className="text-xs text-[var(--status-paused)]">
+            Esta campaña usa ~{totalSegments.toLocaleString("es-MX")} segmentos y hoy
+            quedan {segmentBudget!.remaining!.toLocaleString("es-MX")} — se enviará lo que
+            entre y el resto saldrá automáticamente los días siguientes.
           </p>
         )}
 

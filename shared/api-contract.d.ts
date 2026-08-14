@@ -163,6 +163,10 @@ export type CampaignStatus =
   | "draft"
   | "scheduled"
   | "sending"
+  // Deferred by the daily carrier segment budget (or by a provider throughput
+  // rejection) with recipients still pending. The scheduler's drain tick
+  // resumes it automatically; nothing has gone wrong.
+  | "paused"
   | "completed"
   | "failed";
 
@@ -263,6 +267,12 @@ export interface AccountBalanceResponse {
   autoReload: boolean;
   pricePerSegment: string | null;
   currency: string | null;
+  // Segments a campaign may still spend today against the T-Mobile daily cap,
+  // and the limits it is measured against. null when the budget query failed —
+  // it must never take the balance down with it.
+  remainingCampaignSegments: number | null;
+  dailyCampaignSegmentLimit: number;
+  segmentsPerMinuteLimit: number;
 }
 
 export type LogLevel = "info" | "warn" | "error";

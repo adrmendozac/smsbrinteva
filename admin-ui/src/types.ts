@@ -13,6 +13,9 @@ export type CampaignStatus =
   | "draft"
   | "scheduled"
   | "sending"
+  // Deferred by the daily carrier segment budget with recipients still
+  // pending. The scheduler resumes it on its own — not an error state.
+  | "paused"
   | "completed"
   | "failed";
 

@@ -152,6 +152,8 @@ export function StatusPill({ status }: { status: string }) {
       ? "var(--status-sending)"
       : status === "scheduled"
       ? "var(--status-scheduled)"
+      : status === "paused"
+      ? "var(--status-paused)"
       : status === "failed"
       ? "var(--status-failed)"
       : "var(--status-draft)";
@@ -180,6 +182,9 @@ function label(status: string): string {
       draft: "Borrador",
       scheduled: "Programada",
       sending: "Enviando",
+      // Waiting on the daily carrier limit, not stopped by a person: the rest
+      // goes out automatically, so the label has to say so.
+      paused: "En pausa — límite diario",
       completed: "Completada",
       failed: "Fallida",
     } as Record<string, string>
