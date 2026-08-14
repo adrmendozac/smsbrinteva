@@ -25,6 +25,11 @@ type Result = { kind: "ok"; text: string } | { kind: "err"; text: string } | nul
 // Vonage caps an MMS image caption at 300 characters.
 const MMS_CAPTION_MAX = 300;
 
+// Mirrors MAX_UPLOAD in lib/media.js. Checked here so an oversized file is
+// rejected before it is sent, instead of after a multi-megabyte round trip.
+const MAX_UPLOAD_MB = 5;
+const MAX_UPLOAD = MAX_UPLOAD_MB * 1024 * 1024;
+
 function kb(bytes: number) {
   return `${Math.round(bytes / 1024)} KB`;
 }
@@ -153,6 +158,14 @@ export function Composer({
   async function doUpload(file: File, onConflict?: "copy" | "replace") {
     setResult(null);
     setConflict(null);
+    if (file.size > MAX_UPLOAD) {
+      setResult({
+        kind: "err",
+        text: `La imagen pesa ${(file.size / 1024 / 1024).toFixed(1)} MB y el máximo son ${MAX_UPLOAD_MB} MB.`,
+      });
+      if (fileInput.current) fileInput.current.value = "";
+      return;
+    }
     setUploading(true);
     try {
       setMedia(await api.uploadMedia(file, onConflict));
