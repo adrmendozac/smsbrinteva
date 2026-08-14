@@ -21,9 +21,20 @@ const carriers = [
  * a carrier — the send engine budgets them as T-Mobile, and pretending we know
  * otherwise would understate how long a campaign takes.
  */
-export function CarrierCounters({ tally }: { tally: CarrierTally }) {
+export function CarrierCounters({
+  tally,
+  whole = false,
+}: {
+  tally: CarrierTally;
+  // True when nothing is picked yet and the tally covers the whole opted-in
+  // book rather than a chosen audience — the caption has to say which.
+  whole?: boolean;
+}) {
   const resolved = tally.tmobile + tally.att + tally.verizon + tally.other;
   const total = resolved + tally.unknown;
+  // Nothing resolved at all means the backfill has not run yet, which is a
+  // different situation from a partly-resolved book and needs saying plainly.
+  const noneResolved = total > 0 && resolved === 0;
 
   return (
     <section aria-labelledby="carrier-counters-title" className="pt-2">
@@ -35,8 +46,12 @@ export function CarrierCounters({ tally }: { tally: CarrierTally }) {
           <p className="mt-0.5 text-xs text-[var(--text-muted)]">
             {total === 0
               ? "Selecciona destinatarios para ver su operador."
+              : noneResolved
+              ? "Aún sin datos de operador — todos se cuentan como T-Mobile."
               : tally.unknown > 0
               ? `${tally.unknown.toLocaleString("es-MX")} sin datos de operador — se cuentan como T-Mobile.`
+              : whole
+              ? "Toda la lista. T-Mobile marca el límite diario de la campaña."
               : "T-Mobile marca el límite diario de la campaña."}
           </p>
         </div>

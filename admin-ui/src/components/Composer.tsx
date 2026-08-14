@@ -129,7 +129,14 @@ export function Composer({
   // Carrier split of the picked audience. CSV and hand-typed numbers are not in
   // the directory, so they have no carrier yet and count as unknown — which is
   // also how the send engine budgets them.
+  //
+  // With nothing picked yet, falls back to the whole opted-in book: three
+  // dashes tell the seller nothing, while the book's own T-Mobile share is the
+  // number that decides how long a full blast would take.
+  const carrierSelectionEmpty =
+    selectedIds.size === 0 && csvPhones.length === 0 && manualPhones.length === 0;
   const carrierTally = useMemo(() => {
+    if (carrierSelectionEmpty) return tallyCarriers(contacts.map((c) => c.carrier_name ?? null));
     const known = contacts
       .filter((c) => selectedIds.has(c.id))
       .map((c) => c.carrier_name ?? null);
@@ -137,7 +144,7 @@ export function Composer({
       csvPhones.length + manualPhones.length
     ).fill(null);
     return tallyCarriers([...known, ...unlisted]);
-  }, [contacts, selectedIds, csvPhones.length, manualPhones.length]);
+  }, [contacts, selectedIds, csvPhones.length, manualPhones.length, carrierSelectionEmpty]);
   const overDailyBudget =
     segmentBudget !== null &&
     segmentBudget.remaining !== null &&
@@ -320,7 +327,7 @@ export function Composer({
             preselectContactId={preselectContactId}
             recipientCount={approxRecipients}
           />
-          <CarrierCounters tally={carrierTally} />
+          <CarrierCounters tally={carrierTally} whole={carrierSelectionEmpty} />
         </Field>
       </Card>
 
@@ -329,7 +336,7 @@ export function Composer({
           label={media ? "Mensaje (pie de foto)" : "Escribe un mensaje"}
           className="[&>div]:!mb-5"
           hint={
-            <span className={cn(overCaption ? "text-[var(--status-failed)]" : undefined, "font-satoshi tabular-nums")}>
+            <span className={cn(overCaption ? "text-[var(--status-failed)]" : undefined, "font-satoshi text-base font-semibold tabular-nums")}>
               {media
                 ? `${sanitized.length}/${MMS_CAPTION_MAX} car. · MMS`
                 : `${sanitized.length} car. · ${segments} SMS`}
@@ -341,7 +348,7 @@ export function Composer({
             onChange={(e) => setMessage(e.target.value)}
             rows={5}
             placeholder="Escribe el mensaje, o una idea breve y pulsa “Sugerir con IA”."
-            className={`${inputClass} resize-y`}
+            className={`${inputClass} resize-none`}
           />
         </Field>
 
@@ -538,8 +545,13 @@ export function Composer({
           </p>
         )}
 
-        <div className="flex items-center gap-3 pt-5">
-          <Button onClick={send} loading={submitting} disabled={!canSend}>
+        <div className="mx-auto flex w-[13.75rem] items-center gap-3 pt-5">
+          <Button
+            onClick={send}
+            loading={submitting}
+            disabled={!canSend}
+            className="min-w-0 flex-1"
+          >
             <PaperPlaneTilt size={16} weight="fill" />
             {mode === "now" ? "Enviar" : "Programar"}
           </Button>
