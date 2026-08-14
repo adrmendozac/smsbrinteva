@@ -19,8 +19,8 @@ const { lookupCarrier } = require('../lib/vonage');
 const { CARRIER_TTL_DAYS, NON_MOBILE, INVALID } = require('../lib/throughput');
 
 // Number Insight has its own rate limit and answers a burst with status 1
-// (throttled). Three per second is comfortably under it and still clears a
-// few thousand contacts in minutes.
+// ("account rate limit exceeded"). Three per second is comfortably under it and
+// still clears a few thousand contacts in minutes.
 const LOOKUPS_PER_SEC = 3;
 
 const sleep = ms => new Promise(r => setTimeout(r, ms));
