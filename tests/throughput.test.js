@@ -32,25 +32,48 @@ const fresh = new Date('2026-08-13T12:00:00Z');
 const recent = new Date('2026-08-01T12:00:00Z');
 const ancient = new Date('2026-01-01T12:00:00Z');
 
-test('T-Mobile numbers use the strict bucket', () => {
-  assert.equal(bucketFor({ carrier_network_code: '310260', carrier_checked_at: recent }, fresh), TMOBILE);
-  // Sprint's estate rides the same brand allowance.
-  assert.equal(bucketFor({ carrier_network_code: '310120', carrier_checked_at: recent }, fresh), TMOBILE);
+// Carrier names exactly as Number Insight returned them from production on
+// 2026-08-13 — classification runs off these strings, so the fixtures are the
+// real ones rather than tidied-up versions.
+const tmobileRow = { carrier_network_code: '310260', carrier_name: 'T-mobile USA, Inc.', carrier_checked_at: recent };
+const attRow = { carrier_network_code: '310090', carrier_name: 'AT&T Mobility', carrier_checked_at: recent };
+const verizonRow = { carrier_network_code: '310004', carrier_name: 'Verizon Wireless', carrier_checked_at: recent };
+
+test('the T-Mobile brand family uses the strict bucket', () => {
+  assert.equal(bucketFor(tmobileRow, fresh), TMOBILE);
+  // Sprint and the MVNOs ride T-Mobile's network and share its allowance.
+  for (const carrier_name of ['Sprint', 'MetroPCS', 'Mint Mobile', 'Google Fi']) {
+    assert.equal(
+      bucketFor({ carrier_network_code: '310999', carrier_name, carrier_checked_at: recent }, fresh),
+      TMOBILE,
+      `${carrier_name} should share T-Mobile's budget`
+    );
+  }
 });
 
 test('other resolved mobile carriers use the loose bucket', () => {
-  assert.equal(bucketFor({ carrier_network_code: '310410', carrier_checked_at: recent }, fresh), OTHER);
+  assert.equal(bucketFor(attRow, fresh), OTHER);
+  assert.equal(bucketFor(verizonRow, fresh), OTHER);
 });
 
 test('anything unresolved falls back to the strict bucket', () => {
   // Never looked up. Guessing 'other' here is exactly how the cap gets blown.
-  assert.equal(bucketFor({ carrier_network_code: null, carrier_checked_at: null }, fresh), TMOBILE);
+  assert.equal(bucketFor({ carrier_network_code: null, carrier_name: null, carrier_checked_at: null }, fresh), TMOBILE);
   assert.equal(bucketFor(null, fresh), TMOBILE);
   // Landline / unusable number sentinels.
-  assert.equal(bucketFor({ carrier_network_code: 'NON_MOBILE', carrier_checked_at: recent }, fresh), TMOBILE);
-  assert.equal(bucketFor({ carrier_network_code: 'INVALID', carrier_checked_at: recent }, fresh), TMOBILE);
+  assert.equal(bucketFor({ carrier_network_code: 'NON_MOBILE', carrier_name: 'Some Telco', carrier_checked_at: recent }, fresh), TMOBILE);
+  assert.equal(bucketFor({ carrier_network_code: 'INVALID', carrier_name: null, carrier_checked_at: recent }, fresh), TMOBILE);
   // Stale beyond the TTL: the number may have ported since.
-  assert.equal(bucketFor({ carrier_network_code: '310410', carrier_checked_at: ancient }, fresh), TMOBILE);
+  assert.equal(bucketFor({ ...attRow, carrier_checked_at: ancient }, fresh), TMOBILE);
+});
+
+test('a row with no stored name falls back to observed codes only', () => {
+  // Resolved before carrier_name was recorded. Only the three codes actually
+  // seen in our own data are trusted; an unfamiliar one stays strict rather
+  // than being guessed into the unlimited bucket.
+  assert.equal(bucketFor({ carrier_network_code: '310090', carrier_name: null, carrier_checked_at: recent }, fresh), OTHER);
+  assert.equal(bucketFor({ carrier_network_code: '310260', carrier_name: null, carrier_checked_at: recent }, fresh), TMOBILE);
+  assert.equal(bucketFor({ carrier_network_code: '311870', carrier_name: null, carrier_checked_at: recent }, fresh), TMOBILE);
 });
 
 // ── Limit configuration ────────────────────────────────────────────────────

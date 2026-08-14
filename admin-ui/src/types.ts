@@ -7,6 +7,10 @@ export interface Contact {
   // these.
   opted_in?: boolean;
   archived_at?: string | null;
+  // Carrier name from Number Insight, stored once by
+  // scripts/backfill-carriers.js. Present on the audience picker's
+  // GET /api/contacts; null until that contact has been resolved.
+  carrier_name?: string | null;
 }
 
 export type CampaignStatus =

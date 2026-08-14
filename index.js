@@ -135,7 +135,7 @@ async function sendSMS(to, text, conversationId, sentBy = 'ai', mediaUrl = null)
     // not made to wait for tomorrow because a blast filled the day's quota —
     // campaigns are what yield.
     const [carrierRows] = await db.execute(
-      `SELECT carrier_network_code, carrier_checked_at FROM contacts WHERE phone = ? LIMIT 1`,
+      `SELECT carrier_network_code, carrier_name, carrier_checked_at FROM contacts WHERE phone = ? LIMIT 1`,
       [to]
     );
     await deps.throughput.acquire(

@@ -17,6 +17,7 @@ import { SchedulePicker } from "./SchedulePicker";
 import { fromPacific, nowPacific, type WallClock } from "../lib/datetime";
 import { suggestCampaignName } from "../lib/campaignName";
 import { CarrierCounters } from "./CarrierCounters";
+import { tallyCarriers } from "../lib/carriers";
 
 type Mode = "now" | "later";
 type Result = { kind: "ok"; text: string } | { kind: "err"; text: string } | null;
@@ -124,6 +125,19 @@ export function Composer({
   // today's remaining allowance so an oversized blast is understood before it
   // is launched, not after it pauses.
   const totalSegments = approxRecipients * segments;
+
+  // Carrier split of the picked audience. CSV and hand-typed numbers are not in
+  // the directory, so they have no carrier yet and count as unknown — which is
+  // also how the send engine budgets them.
+  const carrierTally = useMemo(() => {
+    const known = contacts
+      .filter((c) => selectedIds.has(c.id))
+      .map((c) => c.carrier_name ?? null);
+    const unlisted = new Array<string | null>(
+      csvPhones.length + manualPhones.length
+    ).fill(null);
+    return tallyCarriers([...known, ...unlisted]);
+  }, [contacts, selectedIds, csvPhones.length, manualPhones.length]);
   const overDailyBudget =
     segmentBudget !== null &&
     segmentBudget.remaining !== null &&
@@ -306,7 +320,7 @@ export function Composer({
             preselectContactId={preselectContactId}
             recipientCount={approxRecipients}
           />
-          <CarrierCounters />
+          <CarrierCounters tally={carrierTally} />
         </Field>
       </Card>
 
@@ -452,7 +466,7 @@ export function Composer({
         <div
           role="tablist"
           aria-label="Cuándo enviar"
-          className="flex justify-center rounded-full bg-[var(--surface-sunken)] p-1"
+          className="mx-auto flex w-max rounded-full bg-[var(--surface-sunken)] p-1"
         >
           {(
             [
