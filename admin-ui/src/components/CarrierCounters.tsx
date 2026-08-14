@@ -55,11 +55,11 @@ export function CarrierCounters({
               : "T-Mobile marca el límite diario de la campaña."}
           </p>
         </div>
-        {tally.other > 0 && (
-          <span className="shrink-0 text-[0.6875rem] font-medium tracking-wide text-[var(--text-muted)]">
-            +{tally.other.toLocaleString("es-MX")} OTROS
-          </span>
-        )}
+        {/* Carriers outside the big three are a rounding error in this book (two
+            Dish numbers out of 1,126) and are not what the panel is for: the
+            question it answers is how much of the audience sits behind
+            T-Mobile's daily cap. They still send normally and still draw from
+            the 'other' throughput bucket — they are simply not shown. */}
       </div>
 
       <dl className="mt-3 grid overflow-hidden rounded-xl bg-[var(--surface-sunken)] sm:grid-cols-3">
