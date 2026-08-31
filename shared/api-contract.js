@@ -234,9 +234,11 @@ const contact = schema.object({
   name: schema.nullable(contactName),
   opted_in: schema.optional(schema.boolean()),
   archived_at: schema.optional(schema.nullable(schema.isoDateTime())),
-  // Only the audience picker's GET /api/contacts returns this; null until the
-  // carrier backfill has resolved the contact.
+  // Only the audience picker's GET /api/contacts returns these; together they
+  // let the UI mirror the backend throughput bucket exactly.
+  carrier_network_code: schema.optional(schema.nullable(schema.string({ maxLength: 16 }))),
   carrier_name: schema.optional(schema.nullable(schema.string({ maxLength: 64 }))),
+  carrier_checked_at: schema.optional(schema.nullable(schema.isoDateTime())),
 });
 
 const campaignFields = {
@@ -358,6 +360,9 @@ const contracts = Object.freeze({
     autoReload: schema.boolean(),
     pricePerSegment: schema.nullable(schema.string({ maxLength: 64 })),
     currency: schema.nullable(schema.string({ maxLength: 16 })),
+    remainingCampaignSegments: schema.nullable(schema.integer({ min: 0 })),
+    dailyCampaignSegmentLimit: positiveInteger,
+    segmentsPerMinuteLimit: positiveInteger,
   }),
   logEntry,
   logPage: schema.object({

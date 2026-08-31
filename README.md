@@ -286,7 +286,7 @@ primero (`TMOBILE_CAMPAIGN_SEGMENTS_PER_DAY` < `TMOBILE_SEGMENTS_PER_DAY`).
 El operador de cada contacto se resuelve **una sola vez** con Number Insight
 Standard y se guarda en `contacts.carrier_*`:
 
-```
+```bash
 node scripts/backfill-carriers.js --dry-run --limit 20   # revisión previa
 node scripts/backfill-carriers.js                        # resolución real
 ```

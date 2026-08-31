@@ -31,6 +31,12 @@
       "skillPath": "skills/gpt-tasteskill/SKILL.md",
       "computedHash": "cc8f0c601d8240a124e1d11634351a2be7b8a72fd807c75e5b6bf7afcd5ddee0"
     },
+    "grill-me": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/grill-me/SKILL.md",
+      "computedHash": "f361db4e15e6bfd562a9282b1dccda513910a50061f9e838ce017be9c69dde3f"
+    },
     "high-end-visual-design": {
       "source": "Leonxlnx/taste-skill",
       "sourceType": "github",
@@ -78,6 +84,12 @@
       "sourceType": "github",
       "skillPath": "skills/stitch-skill/SKILL.md",
       "computedHash": "13322f38406cd3abf16ba45e35bdc9b18002d0153a79b4612b97aefc65d5a335"
+    },
+    "teach": {
+      "source": "mattpocock/skills",
+      "sourceType": "github",
+      "skillPath": "skills/productivity/teach/SKILL.md",
+      "computedHash": "68999bb1a241384b2f921f3321d779b7d05eb6089077b70d88cee2aee3d75ccc"
     }
   }
 }

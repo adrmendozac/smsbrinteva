@@ -17,9 +17,9 @@ const carriers = [
  * anyone else. A campaign's T-Mobile share is what decides whether it finishes
  * today or spills across several days.
  *
- * Contacts with no lookup yet are shown as "sin datos" rather than folded into
- * a carrier — the send engine budgets them as T-Mobile, and pretending we know
- * otherwise would understate how long a campaign takes.
+ * Contacts without a fresh, usable lookup are shown separately rather than
+ * folded into a carrier. The send engine budgets them as T-Mobile, and the UI
+ * uses the same conservative rule.
  */
 export function CarrierCounters({
   tally,
@@ -47,9 +47,9 @@ export function CarrierCounters({
             {total === 0
               ? "Selecciona destinatarios para ver su operador."
               : noneResolved
-              ? "Aún sin datos de operador — todos se cuentan como T-Mobile."
+              ? "Aún sin datos válidos de operador — todos se cuentan como T-Mobile."
               : tally.unknown > 0
-              ? `${tally.unknown.toLocaleString("es-MX")} sin datos de operador — se cuentan como T-Mobile.`
+              ? `${tally.unknown.toLocaleString("es-MX")} sin datos válidos de operador — se cuentan como T-Mobile.`
               : whole
               ? "Toda la lista. T-Mobile marca el límite diario de la campaña."
               : "T-Mobile marca el límite diario de la campaña."}

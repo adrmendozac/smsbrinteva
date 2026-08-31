@@ -144,7 +144,9 @@ export interface Contact {
   name: string | null;
   opted_in?: boolean;
   archived_at?: string | null;
+  carrier_network_code?: string | null;
   carrier_name?: string | null;
+  carrier_checked_at?: string | null;
 }
 
 export interface CreateContactRequest {

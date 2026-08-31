@@ -22,6 +22,9 @@ const contact: Contact = {
   name: "Nicoll",
   opted_in: true,
   archived_at: null,
+  carrier_network_code: "310090",
+  carrier_name: "AT&T Mobility",
+  carrier_checked_at: "2026-08-20T12:00:00.000Z",
 };
 
 const campaignRequest: CreateCampaignRequest = {

@@ -212,6 +212,9 @@ test('validates contact response shapes and lists', () => {
     name: 'Nicoll',
     opted_in: true,
     archived_at: null,
+    carrier_network_code: '310090',
+    carrier_name: 'AT&T Mobility',
+    carrier_checked_at: '2026-08-20T12:00:00.000Z',
   };
 
   assertValid(contracts.contact, contact);
@@ -222,6 +225,7 @@ test('validates contact response shapes and lists', () => {
   }]);
   assertInvalid(contracts.contact, { ...contact, id: 0 }, ['id']);
   assertInvalid(contracts.contact, { ...contact, archived_at: '2026-08-03' }, ['archived_at']);
+  assertInvalid(contracts.contact, { ...contact, carrier_checked_at: '2026-08-20' }, ['carrier_checked_at']);
 });
 
 test('validates create and update contact requests', () => {
@@ -406,25 +410,72 @@ test('validates media conflict payloads and query options', () => {
   assertInvalid(contracts.mediaConflictQuery, { onConflict: 'overwrite' }, ['onConflict']);
 });
 
-test('validates account balance with nullable pricing', () => {
+test('validates account balance with nullable pricing and segment budget', () => {
   assertValid(contracts.accountBalanceResponse, {
     balance: '25.50',
     autoReload: false,
     pricePerSegment: '0.01200',
     currency: 'USD',
+    remainingCampaignSegments: 875,
+    dailyCampaignSegmentLimit: 1200,
+    segmentsPerMinuteLimit: 50,
   });
   assertValid(contracts.accountBalanceResponse, {
     balance: '25.50',
     autoReload: false,
     pricePerSegment: null,
     currency: null,
+    remainingCampaignSegments: null,
+    dailyCampaignSegmentLimit: 1200,
+    segmentsPerMinuteLimit: 50,
   });
   assertInvalid(contracts.accountBalanceResponse, {
     balance: 25.5,
     autoReload: false,
     pricePerSegment: null,
     currency: null,
+    remainingCampaignSegments: null,
+    dailyCampaignSegmentLimit: 1200,
+    segmentsPerMinuteLimit: 50,
   }, ['balance']);
+});
+
+test('account balance runtime contract requires valid throughput fields', () => {
+  const value = {
+    balance: '25.50',
+    autoReload: false,
+    pricePerSegment: null,
+    currency: null,
+    remainingCampaignSegments: 0,
+    dailyCampaignSegmentLimit: 1200,
+    segmentsPerMinuteLimit: 50,
+  };
+
+  for (const field of [
+    'remainingCampaignSegments',
+    'dailyCampaignSegmentLimit',
+    'segmentsPerMinuteLimit',
+  ]) {
+    const incomplete = { ...value };
+    delete incomplete[field];
+    assertInvalid(contracts.accountBalanceResponse, incomplete, [field]);
+  }
+
+  assertInvalid(
+    contracts.accountBalanceResponse,
+    { ...value, remainingCampaignSegments: -1 },
+    ['remainingCampaignSegments'],
+  );
+  assertInvalid(
+    contracts.accountBalanceResponse,
+    { ...value, dailyCampaignSegmentLimit: 0 },
+    ['dailyCampaignSegmentLimit'],
+  );
+  assertInvalid(
+    contracts.accountBalanceResponse,
+    { ...value, segmentsPerMinuteLimit: 0 },
+    ['segmentsPerMinuteLimit'],
+  );
 });
 
 const logCategories = [

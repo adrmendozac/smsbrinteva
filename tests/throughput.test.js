@@ -97,6 +97,85 @@ test('a junk env value falls back to the default rather than disabling the limit
   assert.equal(l.tmobileSegmentsPerDay, 1500);
 });
 
+// ── Accounting predicate mirrors bucketFor() ───────────────────────────────
+
+// bucketFor() decides what a send costs; the usedToday() SQL decides what the
+// day is judged to have spent. When they disagree the budget stops describing
+// reality. They drifted once already: bucketFor() routes a nameless legacy row
+// through KNOWN_CODES, while the SQL required a carrier_name to escape the
+// strict bucket, so AT&T and Verizon segments were billed to T-Mobile and
+// campaigns paused against a budget they had not spent.
+//
+// There is no local MySQL, so these assert the emitted statement rather than
+// its result. That still catches the drift: the clauses and their parameters
+// are what diverged.
+function captureQueries() {
+  const queries = [];
+  return {
+    queries,
+    async query(sql, params) {
+      queries.push({ sql, params });
+      return [[{ n: 0 }]];
+    }
+  };
+}
+
+test('the used-today predicate binds one parameter per placeholder', async () => {
+  const db = captureQueries();
+  await createThroughput({ db, env: {}, now: () => fresh, sleep: async () => {} }).usedToday(TMOBILE);
+
+  assert.ok(db.queries.length > 0, 'usedToday should have issued at least one query');
+  for (const { sql, params } of db.queries) {
+    assert.equal(
+      (sql.match(/\?/g) || []).length,
+      params.length,
+      'a placeholder without its parameter silently shifts every later binding'
+    );
+  }
+});
+
+test('nameless legacy rows are counted in the same bucket they send from', async () => {
+  const looseCodes = Object.keys(throughput.KNOWN_CODES)
+    .filter(code => throughput.KNOWN_CODES[code] === OTHER);
+  assert.ok(looseCodes.length > 0, 'fixture assumes at least one non-T-Mobile known code');
+
+  // Every code bucketFor() treats as loose without a name must reach the SQL,
+  // or its segments get billed to the strict budget.
+  for (const code of looseCodes) {
+    assert.equal(
+      bucketFor({ carrier_network_code: code, carrier_name: null, carrier_checked_at: recent }, fresh),
+      OTHER
+    );
+  }
+
+  const db = captureQueries();
+  await createThroughput({ db, env: {}, now: () => fresh, sleep: async () => {} }).usedToday(TMOBILE);
+
+  for (const { sql, params } of db.queries) {
+    assert.match(sql, /carrier_name IS NULL/, 'the nameless branch must exist in the predicate');
+    for (const code of looseCodes) {
+      assert.ok(params.includes(code), `known loose code ${code} must be bound into the predicate`);
+    }
+  }
+});
+
+test('a row with no carrier code lands in the strict bucket, never in neither', async () => {
+  // `NULL NOT IN (...)` is NULL rather than true, so a predicate that leans on
+  // it alone leaves such a row failing both `isLoose` and `NOT isLoose` — its
+  // segments counted nowhere. The explicit IS NOT NULL keeps the split total.
+  assert.equal(
+    bucketFor({ carrier_network_code: null, carrier_name: 'AT&T Mobility', carrier_checked_at: recent }, fresh),
+    TMOBILE
+  );
+
+  const db = captureQueries();
+  await createThroughput({ db, env: {}, now: () => fresh, sleep: async () => {} }).usedToday(TMOBILE);
+
+  for (const { sql } of db.queries) {
+    assert.match(sql, /carrier_network_code IS NOT NULL/);
+  }
+});
+
 // ── Test doubles ───────────────────────────────────────────────────────────
 
 // Minimal db stub. usedToday() issues two SUM queries — campaign traffic then

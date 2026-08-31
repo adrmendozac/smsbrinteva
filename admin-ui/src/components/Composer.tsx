@@ -124,13 +124,6 @@ export function Composer({
   const overBalance =
     estimatedCost !== null && balance !== null && estimatedCost > Number(balance);
 
-  // Carriers meter segments, not messages: a 686-character body is 5 segments
-  // per recipient, so 1,112 recipients is 5,530 segments — the shape of the
-  // send that got the account blocked on 2026-08-11. Show the total against
-  // today's remaining allowance so an oversized blast is understood before it
-  // is launched, not after it pauses.
-  const totalSegments = approxRecipients * segments;
-
   // Carrier split of the picked audience. CSV and hand-typed numbers are not in
   // the directory, so they have no carrier yet and count as unknown — which is
   // also how the send engine budgets them.
@@ -141,19 +134,24 @@ export function Composer({
   const carrierSelectionEmpty =
     selectedIds.size === 0 && csvPhones.length === 0 && manualPhones.length === 0;
   const carrierTally = useMemo(() => {
-    if (carrierSelectionEmpty) return tallyCarriers(contacts.map((c) => c.carrier_name ?? null));
-    const known = contacts
-      .filter((c) => selectedIds.has(c.id))
-      .map((c) => c.carrier_name ?? null);
-    const unlisted = new Array<string | null>(
+    if (carrierSelectionEmpty) return tallyCarriers(contacts);
+    const known = contacts.filter((c) => selectedIds.has(c.id));
+    const unlisted = new Array<null>(
       csvPhones.length + manualPhones.length
     ).fill(null);
     return tallyCarriers([...known, ...unlisted]);
   }, [contacts, selectedIds, csvPhones.length, manualPhones.length, carrierSelectionEmpty]);
+
+  // Only T-Mobile and unresolved carriers spend the strict daily allowance.
+  // AT&T, Verizon, and other resolved carriers still consume segments, but
+  // they use the separate per-minute bucket and must not trigger this warning.
+  const strictBucketSegments =
+    (carrierTally.tmobile + carrierTally.unknown) * segments;
   const overDailyBudget =
+    !carrierSelectionEmpty &&
     segmentBudget !== null &&
     segmentBudget.remaining !== null &&
-    totalSegments > segmentBudget.remaining;
+    strictBucketSegments > segmentBudget.remaining;
 
   async function doUpload(file: File, onConflict?: "copy" | "replace") {
     setResult(null);
@@ -552,9 +550,10 @@ export function Composer({
 
         {overDailyBudget && segmentBudget?.remaining !== null && (
           <p className="text-xs text-[var(--status-paused)]">
-            Esta campaña usa ~{totalSegments.toLocaleString("es-MX")} segmentos y hoy
-            quedan {segmentBudget!.remaining!.toLocaleString("es-MX")} — se enviará lo que
-            entre y el resto saldrá automáticamente los días siguientes.
+            Esta campaña usa ~{strictBucketSegments.toLocaleString("es-MX")} segmentos
+            del cupo diario estricto (T-Mobile y operador desconocido) y hoy quedan{" "}
+            {segmentBudget!.remaining!.toLocaleString("es-MX")} — se enviará lo que entre
+            y el resto saldrá automáticamente los días siguientes.
           </p>
         )}
 
