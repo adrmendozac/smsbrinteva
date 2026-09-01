@@ -234,8 +234,9 @@ const contact = schema.object({
   name: schema.nullable(contactName),
   opted_in: schema.optional(schema.boolean()),
   archived_at: schema.optional(schema.nullable(schema.isoDateTime())),
-  // Only the audience picker's GET /api/contacts returns these; together they
-  // let the UI mirror the backend throughput bucket exactly.
+  // Returned by GET /api/contacts and GET /api/contacts/all; together they let
+  // the UI mirror the backend throughput bucket exactly. Optional because the
+  // create and edit handlers re-read a contact without these columns.
   carrier_network_code: schema.optional(schema.nullable(schema.string({ maxLength: 16 }))),
   carrier_name: schema.optional(schema.nullable(schema.string({ maxLength: 64 }))),
   carrier_checked_at: schema.optional(schema.nullable(schema.isoDateTime())),

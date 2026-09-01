@@ -8,7 +8,9 @@ export interface Contact {
   opted_in?: boolean;
   archived_at?: string | null;
   // Number Insight result used by both the backend throughput bucket and the
-  // audience carrier tally. Present on GET /api/contacts; null until resolved.
+  // audience carrier tally. Returned by GET /api/contacts and GET
+  // /api/contacts/all — the composer's audience is a filter over the latter,
+  // so both have to carry them. Null until the backfill resolves the contact.
   carrier_network_code?: string | null;
   carrier_name?: string | null;
   carrier_checked_at?: string | null;
