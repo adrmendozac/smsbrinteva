@@ -907,21 +907,21 @@ test('renders the questions card on the fixed brand-navy surface with high-contr
   assert.match(html, /class="contact-label">Reservas<\/span>/);
 });
 
-test('renders a green WhatsApp button with icon, label, and phone number', () => {
+test('renders a share button in place of the old WhatsApp action', () => {
   const html = h.renderHostedPage({ body: 'Día 1: BANGKOK\nLlegada.' });
 
-  assert.match(html, /fontawesome-free@6\.7\.2\/svgs\/brands\/whatsapp\.svg/);
-  assert.match(html, /class="whatsapp-icon"[^>]*alt=""/);
-  // WhatsApp intentionally carries its own number, separate from the Reservas
-  // call line — a business's WhatsApp line need not be the same number.
-  assert.match(html, /href="https:\/\/wa\.me\/19254353077"/);
-  assert.match(html, /Escríbenos por WhatsApp/);
-  assert.match(html, />\+1 925 435 3077<\/strong>/);
-  assert.match(html, /\.contact-button--whatsapp \.contact-icon\{background:#087a63\}/);
+  // The WhatsApp button became a Web Share button: one link handed to whatever
+  // the customer's device offers, so the page no longer publishes a second
+  // business number that has to be kept in sync with the Reservas line.
+  assert.doesNotMatch(html, /whatsapp|wa\.me/i);
+  assert.match(html, /class="contact-button contact-button--share" type="button" data-share-itinerary/);
+  assert.match(html, /fontawesome-free@6\.7\.2\/svgs\/solid\/share-nodes\.svg/);
+  assert.match(html, /<strong data-share-label>Compartir este itinerario<\/strong>/);
+  assert.match(html, /\.contact-button--share \.contact-icon\{background:#0e7490\}/);
   assert.match(html, /\.contact-button--call \.contact-icon\{background:var\(--crimson\)\}/);
 });
 
-test('the phone and WhatsApp actions share one contact-button layout', () => {
+test('the call, share, and print actions share one contact-button layout', () => {
   const html = h.renderHostedPage({ body: 'Día 1: BANGKOK\nLlegada.' });
 
   assert.match(html, /fontawesome-free@6\.7\.2\/svgs\/solid\/phone\.svg/);
