@@ -11,7 +11,7 @@
 // `set -e` in the hook would then abort before pm2 ever restarts.
 require('dotenv').config();
 const fs = require('fs');
-const mysql = require('mysql2/promise');
+const { createUtcConnection } = require('../lib/database');
  
 (async () => {
   const file = process.argv[2];
@@ -20,7 +20,7 @@ const mysql = require('mysql2/promise');
     process.exit(1);
   }
   const sql = fs.readFileSync(file, 'utf8');
-  const db = await mysql.createConnection({
+  const db = await createUtcConnection({
     host: process.env.DB_HOST,
     port: process.env.DB_PORT,
     user: process.env.DB_USER,

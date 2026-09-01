@@ -33,6 +33,7 @@ bridge to Kommo CRM, where sales agents manage conversations.
 ├── lib/
 │   ├── campaigns.js         # Campaigns and audience resolution
 │   ├── contacts.js          # Contact creation, editing, and archiving
+│   ├── database.js          # UTC-safe MySQL pools and connections
 │   ├── hosted.js            # Hosted long messages and `/i/:code`
 │   ├── hostedInterpreter.js # Haiku interpretation and validation
 │   ├── media.js             # MMS image upload and optimization
@@ -159,6 +160,13 @@ node scripts/apply-migration.js migrations/YYYY-MM-DD-description.sql
 The runner loads database credentials through `dotenv`, keeping secrets out of
 shell history. There is no local MySQL instance; normal backend verification is
 static or uses injected dependencies.
+
+All Node.js MySQL access must use the helpers in `lib/database.js`. They set
+mysql2's date conversion to UTC (`timezone: 'Z'`) and pin every MySQL session to
+`+00:00`. Both settings are required: the first controls JavaScript `Date`
+conversion, while the second keeps `NOW()`, `CURRENT_TIMESTAMP`, and the UTC
+day boundary used by the carrier throughput budget aligned if the VPS timezone
+changes.
 
 ---
 

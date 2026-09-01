@@ -2,8 +2,8 @@ require('dotenv').config();
 const path = require('path');
 const express = require('express');
 const axios = require('axios');
-const mysql = require('mysql2/promise');
 const jwt = require('jsonwebtoken');
+const { createUtcPool } = require('./lib/database');
 const { sanitizeForSMS, smsSegments, MMS_CAPTION_MAX } = require('./lib/sms');
 const { createThroughput } = require('./lib/throughput');
 const { createHostedMessage, buildLinkSms, classifyItineraries, registerHostedRoutes } = require('./lib/hosted');
@@ -20,6 +20,8 @@ const { sendMessage, sendImage } = require('./lib/vonage');
 const { registerVoiceRoutes } = require('./lib/voice');
 const { createLogger } = require('./lib/logs');
 const { registerCrawlerProtection } = require('./lib/crawlers');
+const { contracts } = require('./shared/api-contract');
+const { validateBody, validateQuery } = require('./lib/validation');
 
 const app = express();
 registerCrawlerProtection(app);
@@ -40,7 +42,7 @@ app.use('/admin', express.static(path.join(__dirname, 'public/admin')));
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
 // DB connection pool
-const db = mysql.createPool({
+const db = createUtcPool({
   host: process.env.DB_HOST,
   port: process.env.DB_PORT,
   user: process.env.DB_USER,
@@ -70,9 +72,8 @@ deps.throughput = createThroughput({
 const log = createLogger(db);
 deps.log = log;
 
-app.post('/api/login', (req, res) => {
+app.post('/api/login', validateBody(contracts.loginRequest), (req, res) => {
   const { pin } = req.body;
-  if (!pin) return res.status(400).json({ error: 'PIN required' });
   if (String(pin) !== String(process.env.INBOX_PIN)) {
     // The PIN itself must never reach the log table.
     log.warn('auth', 'Intento de login con PIN incorrecto', { ip: req.ip });
@@ -101,7 +102,7 @@ function requireAuth(req, res, next) {
 // read side. `before` pages older entries (keyset by id), level/category
 // filter the timeline.
 
-app.get('/api/logs', requireAuth, async (req, res) => {
+app.get('/api/logs', requireAuth, validateQuery(contracts.logsQuery), async (req, res) => {
   try {
     const page = await log.list({
       level: req.query.level,

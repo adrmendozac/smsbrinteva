@@ -13,8 +13,8 @@
 // Uses Number Insight Standard (api_key/api_secret), not Identity Insights —
 // see lib/vonage.js lookupCarrier() for why.
 require('dotenv').config();
-const mysql = require('mysql2/promise');
 const axios = require('axios');
+const { createUtcConnection } = require('../lib/database');
 const { lookupCarrier } = require('../lib/vonage');
 const { CARRIER_TTL_DAYS, NON_MOBILE, INVALID } = require('../lib/throughput');
 
@@ -68,7 +68,7 @@ async function main() {
   const limitArg = args.find(a => a.startsWith('--limit'));
   const limit = limitArg ? Number(limitArg.split('=')[1] || args[args.indexOf(limitArg) + 1]) : 0;
 
-  const db = await mysql.createConnection({
+  const db = await createUtcConnection({
     host: process.env.DB_HOST,
     port: process.env.DB_PORT,
     user: process.env.DB_USER,

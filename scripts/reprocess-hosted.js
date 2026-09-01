@@ -4,8 +4,8 @@
 //   node scripts/reprocess-hosted.js --code 4kq66yjbaq
 //   node scripts/reprocess-hosted.js --limit 25
 require('dotenv').config({ quiet: true });
-const mysql = require('mysql2/promise');
 const axios = require('axios');
+const { createUtcConnection } = require('../lib/database');
 const {
   analyzeHostedBody,
   extractDestination,
@@ -35,7 +35,7 @@ function readArgs(argv) {
 (async () => {
   if (!process.env.ANTHROPIC_API_KEY) throw new Error('ANTHROPIC_API_KEY no está configurada');
   const scope = readArgs(process.argv.slice(2));
-  const db = await mysql.createConnection({
+  const db = await createUtcConnection({
     host: process.env.DB_HOST,
     port: process.env.DB_PORT,
     user: process.env.DB_USER,
