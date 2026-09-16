@@ -34,24 +34,66 @@ test('pool destroys a connection that cannot be pinned to UTC', () => {
   const pool = new EventEmitter();
   const driver = { createPool: () => pool };
   let destroyed = false;
+  const events = [];
+  const log = {
+    error(category, message, meta) {
+      events.push({ category, message, meta });
+    },
+  };
+
+  createUtcPool({}, driver, log);
+  pool.emit('connection', {
+    query(_sql, callback) {
+      callback(new Error('session setup failed'));
+    },
+    destroy() {
+      destroyed = true;
+    },
+  });
+
+  assert.equal(destroyed, true);
+  assert.deepEqual(events, [{
+    category: 'system',
+    message: 'No se pudo configurar la zona horaria UTC de MySQL',
+    meta: { error: 'session setup failed' },
+  }]);
+});
+
+test('pool prevents recursive structured logging when UTC setup keeps failing', async () => {
+  const pool = new EventEmitter();
+  const driver = { createPool: () => pool };
+  const consoleMessages = [];
   const originalError = console.error;
-  console.error = () => {};
+  console.error = (...args) => consoleMessages.push(args);
+
+  let releaseLog;
+  const pendingLog = new Promise(resolve => { releaseLog = resolve; });
+  let structuredCalls = 0;
+  const log = {
+    error() {
+      structuredCalls += 1;
+      return pendingLog;
+    },
+  };
 
   try {
-    createUtcPool({}, driver);
-    pool.emit('connection', {
+    createUtcPool({}, driver, log);
+    const connection = {
       query(_sql, callback) {
         callback(new Error('session setup failed'));
       },
-      destroy() {
-        destroyed = true;
-      },
-    });
+      destroy() {},
+    };
+    pool.emit('connection', connection);
+    pool.emit('connection', connection);
+    releaseLog();
+    await pendingLog;
   } finally {
     console.error = originalError;
   }
 
-  assert.equal(destroyed, true);
+  assert.equal(structuredCalls, 1);
+  assert.equal(consoleMessages.length, 1);
 });
 
 test('standalone connections are UTC before they are returned', async () => {

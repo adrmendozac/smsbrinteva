@@ -41,7 +41,15 @@ app.use('/admin', express.static(path.join(__dirname, 'public/admin')));
 // Root static files: favicon.ico, etc. Legal pages are served by public.js routes.
 app.use(express.static(path.join(__dirname, 'public'), { index: false }));
 
-// DB connection pool
+// DB connection pool. The forwarding logger lets connection initialization
+// failures use the structured system category even though createLogger needs
+// the pool itself. mysql2 opens pool connections lazily, after setup finishes.
+let log;
+const databaseLog = {
+  error: (...args) => log
+    ? log.error(...args)
+    : console.error('[database]', args[1], args[2]?.error || '')
+};
 const db = createUtcPool({
   host: process.env.DB_HOST,
   port: process.env.DB_PORT,
@@ -50,7 +58,7 @@ const db = createUtcPool({
   database: process.env.DB_NAME,
   waitForConnections: true,
   connectionLimit: 10
-});
+}, undefined, databaseLog);
 
 const deps = {
   db,
@@ -69,7 +77,7 @@ deps.throughput = createThroughput({
 
 // ── Auth: shared PIN gate ──────────────────────────────────────────────────
 
-const log = createLogger(db);
+log = createLogger(db);
 deps.log = log;
 
 app.post('/api/login', validateBody(contracts.loginRequest), (req, res) => {
