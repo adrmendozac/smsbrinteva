@@ -95,7 +95,6 @@ SMS_PRICE_PER_SEGMENT   # Fallback when the Pricing API is unavailable
 SEGMENTS_PER_MINUTE               # Default 50; AT&T ceiling 75/minute
 TMOBILE_SEGMENTS_PER_DAY          # Default 1500; T-Mobile ceiling 2000/day
 TMOBILE_CAMPAIGN_SEGMENTS_PER_DAY # Default 1200; reserves room for agent replies
-AI_AUTOREPLY                      # 1 enables AI replies; 0 leaves replies to agents
 
 # Hosted long messages
 PUBLIC_BASE_URL         # Default https://sms.brintevaworlds.com
@@ -128,11 +127,11 @@ VOICE_RING_TIMEOUT  VOICE_FALLBACK_NUMBER
 | Table | Purpose |
 |---|---|
 | `contacts` | Phone number, name, opt-in state, archive state, and carrier metadata |
-| `conversations` | Per-contact threads with AI, escalation, and resolution state |
+| `conversations` | Per-contact threads, human-attention state, and resolution state |
 | `messages` | One-to-one inbound/outbound messages, delivery state, sender, cost, and segments |
 | `broadcasts` | Campaigns in `draft`, `scheduled`, `sending`, `paused`, `completed`, or `failed` state |
 | `broadcast_recipients` | Per-recipient state, delivery identifiers, errors, cost, and segments |
-| `promotions` | Catalog injected into the AI prompt |
+| `promotions` | Legacy promotions catalog retained for existing data |
 | `consent_records` | Evidence captured by the public 10DLC consent form |
 | `logs` | Structured events for sends, receipts, webhooks, auth, and admin actions |
 | `hosted_messages` | Raw long-message text, validated Haiku structure, parsing metadata, and cost |
@@ -254,15 +253,15 @@ cd admin-ui && npx tsc --noEmit
 ```text
 1. Upsert the contact and open conversation
 2. Store the inbound message
-3. HELP / INFO / SOPORTE?  -> send the registered help copy before opt-out checks
+3. HELP / INFO / SOPORTE?  -> send the registered help copy
 4. Opt-out keyword?        -> set opted_in = FALSE and resolve the conversation
 5. Opt-in keyword?         -> set opted_in = TRUE
 6. Mirror into Kommo       -> the sales agent can view and answer the thread
-7. AI_AUTOREPLY = 1        -> Claude Haiku replies; [NEEDS_HUMAN] escalates
+7. Leave the conversation for a sales agent in Kommo
 ```
 
-With `AI_AUTOREPLY=0`, sales agents answer from Kommo. With `1`, Haiku may reply
-and escalate the thread. Campaign copy generation does not depend on this flag.
+Ordinary inbound messages never receive an AI-generated reply. Sales agents
+answer from Kommo; only the required STOP/START/HELP flows reply automatically.
 
 ### 10DLC compliance
 

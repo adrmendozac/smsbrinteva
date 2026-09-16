@@ -112,12 +112,10 @@ behind a `KOMMO_ENABLED` flag so the live bot keeps working:
 
 1. **Inbound → Kommo:** in `/inbound`, after storing the customer msg, push to
    `POST https://amojo.kommo.com/v2/origin/custom/{scope_id}`; store returned `msgid`.
-2. **AI reply → Kommo:** after Haiku's `sendSMS(...'ai')`, import a copy tagged
-   "Brinteva AI".
-3. **New `POST /kommo/webhook/:scope_id`:** verify `X-Signature` (HMAC-SHA1,
+2. **New `POST /kommo/webhook/:scope_id`:** verify `X-Signature` (HMAC-SHA1,
    channel secret) → agent reply → `sendSMS(phone, text, conversationId, 'human')`
-   → set conversation `needs_human` to mute the AI.
-4. **`/status` → Kommo:** post delivery status to
+   → set conversation `needs_human` for the agent workflow.
+3. **`/status` → Kommo:** post delivery status to
    `.../{scope_id}/{msgid}/delivery_status`.
 
 Schema delta: `conversations.kommo_chat_id`, `messages.kommo_msg_id`.
