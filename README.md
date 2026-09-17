@@ -18,7 +18,7 @@ bridge to Kommo CRM, where sales agents manage conversations.
 | Runtime | Node.js 20 + PM2 (`sms-bot` process) |
 | Web server | Nginx + Let's Encrypt, proxying to `127.0.0.1:3001` |
 | Database | MySQL 8.4 (`brinteva_sms`) |
-| AI | Anthropic Claude Haiku (`claude-haiku-4-5-20251001`) |
+| AI | Anthropic Claude Sonnet 4.6 (`claude-sonnet-4-6`) |
 | SMS / MMS / Voice | Vonage **Messages API** (RS256 JWT) + NCCO |
 | CRM | Kommo Chats API (external channel) |
 | Admin UI | React + Vite + Tailwind 4, built into `public/admin/` |
@@ -100,7 +100,7 @@ TMOBILE_CAMPAIGN_SEGMENTS_PER_DAY # Default 1200; reserves room for agent replie
 PUBLIC_BASE_URL         # Default https://sms.brintevaworlds.com
 HOSTED_LINK_THRESHOLD   # Character count that switches to a hosted link; default 2000
 HOSTED_LINK_TTL_DAYS    # Hosted-link lifetime; default 365 days
-HOSTED_AI_TIMEOUT_MS    # Haiku interpretation timeout; default 12000 ms
+HOSTED_AI_TIMEOUT_MS    # AI interpretation timeout; default 60000 ms
 UNSPLASH_ACCESS_KEY     # Optional destination image lookup
 
 # Campaign images (MMS)

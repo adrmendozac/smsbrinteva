@@ -1235,7 +1235,7 @@ const AI_OAXACA_STRUCTURE = {
 
 function aiAxios(output, usage = null) {
   return {
-    post: async () => ({ data: { content: [{ text: JSON.stringify(output) }], usage } }),
+    post: async () => ({ data: { content: [{ type: 'text', text: JSON.stringify(output) }], usage } }),
     get: async () => ({ data: { results: [] } }),
   };
 }
@@ -1298,7 +1298,7 @@ test('creation persists validated Haiku structure and derives the source title',
   assert.ok(inserted.params.includes('source'));
   assert.ok(inserted.params.includes(3000));
   assert.ok(inserted.params.includes(600));
-  assert.ok(inserted.params.includes(0.006));
+  assert.ok(inserted.params.includes(0.018));
 });
 
 test('a null Haiku title for a real itinerary is invalid and falls back to the deterministic parser', async () => {
@@ -1359,8 +1359,8 @@ test('Haiku API failure falls back to deterministic parsing and still creates th
   assert.equal(rec.title, 'ROMA');
 });
 
-test('Haiku cost estimate uses separate input and output prices', () => {
-  assert.equal(h.estimateHaikuCost(3000, 600), 0.006);
-  assert.equal(h.estimateHaikuCost(1000, 300), 0.0025);
-  assert.equal(h.estimateHaikuCost(null, 300), null);
+test('AI cost estimate uses separate input and output prices', () => {
+  assert.equal(h.estimateAiCost(3000, 600), 0.018);
+  assert.equal(h.estimateAiCost(1000, 300), 0.0075);
+  assert.equal(h.estimateAiCost(null, 300), null);
 });

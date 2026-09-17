@@ -4,6 +4,7 @@ node_modules/
 # Secrets / env
 .env
 .env.*
+private.key
 
 # Backup snapshots (index.js.bak.<timestamp> convention)
 *.bak

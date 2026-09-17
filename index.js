@@ -289,7 +289,7 @@ const KOMMO_CRM = {
 
 deps.createSmsLead = ({ phone, name, text }) => {
   if (!KOMMO_CRM.token || !KOMMO_CRM.subdomain || !KOMMO_CRM.pipelineId || !KOMMO_CRM.statusId || !KOMMO_CRM.mensajeClienteFieldId) {
-    return Promise.resolve(null);
+    return Promise.resolve({ skipped: true });
   }
   return kommo.createSmsLead({ axios, ...KOMMO_CRM, phone, name, text });
 };

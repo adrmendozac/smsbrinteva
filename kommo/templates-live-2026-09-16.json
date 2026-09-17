@@ -1,0 +1,911 @@
+{
+  "fetched_at": "2026-09-16T20:03:53.434Z",
+  "source": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates?with=reviews",
+  "note": "Unedited snapshot of the live templates before replacement. Old IDs listed here are scheduled for deletion.",
+  "count": 24,
+  "chat_templates": [
+    {
+      "id": 34886,
+      "type": "amocrm",
+      "account_id": 32595019,
+      "name": "Zelle",
+      "content": "Zelle brinteva worlds inc 9162566361 primero mándeme 1 usd para confirmarle y ya me pueda mandar el resto.",
+      "created_at": 1731003782,
+      "updated_at": 1731006908,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": null,
+      "waba_category": null,
+      "waba_template_type": null,
+      "waba_template_body": null,
+      "waba_language": null,
+      "waba_examples": null,
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": null,
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/34886?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": []
+      }
+    },
+    {
+      "id": 34888,
+      "type": "amocrm",
+      "account_id": 32595019,
+      "name": "Xcaret",
+      "content": "Tenemos una promoción al hotel Xcaret México del 14 al 17 de septiembre o del 4 al 7 de diciembre en 2,650 usd 4 días para 2 adultos y 4 al 7 de diciembre en 2,800 usd 4 días para 2 adultos y 2 menores de 17 anos.\nTe incluye: el hotel por los 4 días, alimentos, bebidas, traslado aeropuerto/hotel/aeropuerto y los parques de grupo Xcaret con traslados y alimentos a los que aplique. Te gustaría reservar alguna de esas Promociones?",
+      "created_at": 1731003804,
+      "updated_at": 1748984636,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": null,
+      "waba_category": null,
+      "waba_template_type": null,
+      "waba_template_body": null,
+      "waba_language": null,
+      "waba_examples": null,
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": null,
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/34888?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": []
+      }
+    },
+    {
+      "id": 34894,
+      "type": "amocrm",
+      "account_id": 32595019,
+      "name": "Deposito Bancario",
+      "content": "Bank of america brinteva worlds inc 325163075534",
+      "created_at": 1731006943,
+      "updated_at": 1731006943,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": null,
+      "waba_category": null,
+      "waba_template_type": null,
+      "waba_template_body": null,
+      "waba_language": null,
+      "waba_examples": null,
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": null,
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/34894?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": []
+      }
+    },
+    {
+      "id": 34900,
+      "type": "waba",
+      "account_id": 32595019,
+      "name": "Bienvenida 1",
+      "content": "Hola {{contact.name}}  gracias por contactar a brinteva worlds tu agencia de viajes. Mi nombre es {{lead.responsible.name}} en que puedo ayudarte?",
+      "created_at": 1731009730,
+      "updated_at": 1731009730,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": "",
+      "waba_category": "UTILITY",
+      "waba_template_type": "standard",
+      "waba_template_body": null,
+      "waba_language": "es",
+      "waba_examples": {
+        "{{contact.name}}": "Carlos",
+        "{{lead.responsible.name}}": "Karla"
+      },
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": "approved",
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/34900?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": [
+          {
+            "id": 4552,
+            "source_id": 53840,
+            "status": "approved",
+            "reject_reason": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": 34932,
+      "type": "waba",
+      "account_id": 32595019,
+      "name": "Bienvenida 2",
+      "content": "Hola {{contact.name}}   gracias por contactar a brinteva worlds tu agencia de viajes. Mi nombre es {{lead.responsible.name}}  te escribo para pasarte la cotización de tu viaje",
+      "created_at": 1731092747,
+      "updated_at": 1731092747,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": "",
+      "waba_category": "UTILITY",
+      "waba_template_type": "standard",
+      "waba_template_body": null,
+      "waba_language": "es",
+      "waba_examples": {
+        "{{contact.name}}": "Carlos",
+        "{{lead.responsible.name}}": "Karla"
+      },
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": "approved",
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/34932?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": [
+          {
+            "id": 4566,
+            "source_id": 53840,
+            "status": "approved",
+            "reject_reason": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": 34938,
+      "type": "amocrm",
+      "account_id": 32595019,
+      "name": "Ubicación",
+      "content": "Tenemos 3 oficinas.\nPittsburg Ca: 130 East Leland rd suite a Tel: 925 665 8003\nConcord Ca: 3532 Clayton Rd Concord Tel: 925 848 6625\nGuadalajara Jal: Av federalism norte 3145 int 8 Tel: 33 666160",
+      "created_at": 1731096800,
+      "updated_at": 1744033380,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": null,
+      "waba_category": null,
+      "waba_template_type": null,
+      "waba_template_body": null,
+      "waba_language": null,
+      "waba_examples": null,
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": null,
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/34938?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": []
+      }
+    },
+    {
+      "id": 35036,
+      "type": "waba",
+      "account_id": 32595019,
+      "name": "Reactivación",
+      "content": "Disculpe por la tardanza, quería informarle que estoy trabajando en su viaje",
+      "created_at": 1731439076,
+      "updated_at": 1731439076,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": "",
+      "waba_category": "UTILITY",
+      "waba_template_type": "standard",
+      "waba_template_body": null,
+      "waba_language": "es",
+      "waba_examples": [],
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": "approved",
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/35036?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": [
+          {
+            "id": 4612,
+            "source_id": 53840,
+            "status": "approved",
+            "reject_reason": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": 35052,
+      "type": "waba",
+      "account_id": 32595019,
+      "name": "Interesado Viaje",
+      "content": "Hola {{contact.name}} , quería preguntarle si aún tiene interés en su viaje?",
+      "created_at": 1731446613,
+      "updated_at": 1731446613,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": "",
+      "waba_category": "UTILITY",
+      "waba_template_type": "standard",
+      "waba_template_body": null,
+      "waba_language": "es",
+      "waba_examples": {
+        "{{contact.name}}": "Karla"
+      },
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": "approved",
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/35052?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": [
+          {
+            "id": 4626,
+            "source_id": 53840,
+            "status": "approved",
+            "reject_reason": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": 35172,
+      "type": "waba",
+      "account_id": 32595019,
+      "name": "Cotización",
+      "content": "Hola {{contact.name}}  quería saber que pensó de su viaje? quiere que le reserve? o le cotice algo mas?",
+      "created_at": 1731676777,
+      "updated_at": 1731676777,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": "",
+      "waba_category": "UTILITY",
+      "waba_template_type": "standard",
+      "waba_template_body": null,
+      "waba_language": "es",
+      "waba_examples": {
+        "{{contact.name}}": "Karla"
+      },
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": "approved",
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/35172?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": [
+          {
+            "id": 4688,
+            "source_id": 53840,
+            "status": "approved",
+            "reject_reason": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": 35174,
+      "type": "amocrm",
+      "account_id": 32595019,
+      "name": "Presentación Parques GX",
+      "content": "Te comparto el pdf",
+      "created_at": 1731677672,
+      "updated_at": 1731677672,
+      "buttons": [],
+      "attachment": {
+        "id": "58c2e02a-332a-41fb-b7b5-685884af9343",
+        "name": "Presentación Parques GX.pdf",
+        "type": "document",
+        "is_external": true
+      },
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": null,
+      "waba_category": null,
+      "waba_template_type": null,
+      "waba_template_body": null,
+      "waba_language": null,
+      "waba_examples": null,
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": null,
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/35174?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": []
+      }
+    },
+    {
+      "id": 35176,
+      "type": "amocrm",
+      "account_id": 32595019,
+      "name": "Restaurantes HXM Español",
+      "content": "Te comparto el pdf",
+      "created_at": 1731677697,
+      "updated_at": 1731677697,
+      "buttons": [],
+      "attachment": {
+        "id": "e7bca4b6-45a4-463b-9aec-c2fd5be103ee",
+        "name": "Restaurantes HXM Español.pdf",
+        "type": "document",
+        "is_external": true
+      },
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": null,
+      "waba_category": null,
+      "waba_template_type": null,
+      "waba_template_body": null,
+      "waba_language": null,
+      "waba_examples": null,
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": null,
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/35176?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": []
+      }
+    },
+    {
+      "id": 35178,
+      "type": "amocrm",
+      "account_id": 32595019,
+      "name": "Que incluye Xcaret",
+      "content": "Que incluye el Hotel Xcaret México y Hotel Xcaret Arte?\r\n \r\n✅Acceso ilimitado a todos los Parques de Grupo Xcaret: Xcaret, Xel-Há, Xplor, Xplor Fuego y Xoximilco\r\n✅Acceso ilimitado a los Tours de Grupo Xcaret: Xenotes y Xichén\r\n✅Transportación a todos los Parques y Tours de Grupo Xcaret\r\n✅Transportación Aeropuerto - Hotel - Aeropuerto\r\n✅Alimentos dentro del Hotel*\r\n✅Bebidas nacionales e internacionales dentro del Hotel*\r\n✅Alimentos y bebidas según el plan de comidas de cada Parque o Tour\r\n✅Caletas, río y playas de arena blanca\r\n✅WIFI en cortesía\r\n✅Brazalete Full Access\r\n✅Servicio a la habitación 24 hrs\r\n✅Todos los impuestos y propinas",
+      "created_at": 1731678601,
+      "updated_at": 1731678601,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": null,
+      "waba_category": null,
+      "waba_template_type": null,
+      "waba_template_body": null,
+      "waba_language": null,
+      "waba_examples": null,
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": null,
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/35178?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": []
+      }
+    },
+    {
+      "id": 35440,
+      "type": "waba",
+      "account_id": 32595019,
+      "name": "Cotización día 2",
+      "content": "Hola {{contact.name}}, ¿Hay algo más en lo que pueda ayudarle o desea que preparemos otra cotización para usted?",
+      "created_at": 1732218236,
+      "updated_at": 1732218236,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": "",
+      "waba_category": "UTILITY",
+      "waba_template_type": "standard",
+      "waba_template_body": null,
+      "waba_language": "es",
+      "waba_examples": {
+        "{{contact.name}}": "Karla"
+      },
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": "approved",
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/35440?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": [
+          {
+            "id": 4768,
+            "source_id": 53840,
+            "status": "approved",
+            "reject_reason": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": 36052,
+      "type": "amocrm",
+      "account_id": 32595019,
+      "name": "Dudas",
+      "content": "Cualquier duda quedamos a sus ordenes",
+      "created_at": 1733322367,
+      "updated_at": 1733322367,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": null,
+      "waba_category": null,
+      "waba_template_type": null,
+      "waba_template_body": null,
+      "waba_language": null,
+      "waba_examples": null,
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": null,
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/36052?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": []
+      }
+    },
+    {
+      "id": 36072,
+      "type": "waba",
+      "account_id": 32595019,
+      "name": "Que penso",
+      "content": "Hola {{contact.name}}  buenas tardes, quería saber que pensó de su viaje? quisiera que le cotizara algo mas",
+      "created_at": 1733405850,
+      "updated_at": 1733405850,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": "",
+      "waba_category": "UTILITY",
+      "waba_template_type": "standard",
+      "waba_template_body": null,
+      "waba_language": "es",
+      "waba_examples": {
+        "{{contact.name}}": "Carla"
+      },
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": "approved",
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/36072?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": [
+          {
+            "id": 4894,
+            "source_id": 53840,
+            "status": "approved",
+            "reject_reason": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": 36953,
+      "type": "waba",
+      "account_id": 32595019,
+      "name": "Seguimiento Contacto Inicial",
+      "content": "Hola {{contact.name}} como esta? quiere que le cotice el viaje?",
+      "created_at": 1735240781,
+      "updated_at": 1735240781,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": "",
+      "waba_category": "MARKETING",
+      "waba_template_type": "standard",
+      "waba_template_body": null,
+      "waba_language": "es",
+      "waba_examples": {
+        "{{contact.name}}": "Carla"
+      },
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": "approved",
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/36953?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": [
+          {
+            "id": 5077,
+            "source_id": 53840,
+            "status": "approved",
+            "reject_reason": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": 37395,
+      "type": "waba",
+      "account_id": 32595019,
+      "name": "promociones",
+      "content": "hola {{contact.name}} aqui te comparto nuestras promociones de viaje actuales. Si necesitas algo por favor hagamelo saber.",
+      "created_at": 1736883423,
+      "updated_at": 1736883423,
+      "buttons": [
+        {
+          "url": "https://brintevaworlds.com/#promociones",
+          "text": "Promociones",
+          "type": "url"
+        }
+      ],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": "",
+      "waba_category": "MARKETING",
+      "waba_template_type": "standard",
+      "waba_template_body": null,
+      "waba_language": "es",
+      "waba_examples": {
+        "{{contact.name}}": "nicoll"
+      },
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": "approved",
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/37395?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": [
+          {
+            "id": 5237,
+            "source_id": 53840,
+            "status": "approved",
+            "reject_reason": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": 38107,
+      "type": "waba",
+      "account_id": 32595019,
+      "name": "promocion",
+      "content": "🌍✈️ ¡Descubre las mejores promociones para tu próximo viaje! 🏨🏝️En www.brintevaworlds.com encontrarás ofertas exclusivas en:✨ Hoteles en todo el mundo 🏨🌎 Tours y experiencias inolvidables📅 Reserva fácil y rápido en nuestra web y aprovecha nuestras promociones especiales.🔎 ¿Buscas algo específico? Escríbeme y con gusto te cotizo la mejor opción para tu viaje.📩 ¡Estoy disponible para cualquier duda o cotización!",
+      "created_at": 1738787934,
+      "updated_at": 1738788246,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": "",
+      "waba_category": "MARKETING",
+      "waba_template_type": "standard",
+      "waba_template_body": null,
+      "waba_language": "es",
+      "waba_examples": [],
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": "approved",
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/38107?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": [
+          {
+            "id": 5431,
+            "source_id": 53840,
+            "status": "approved",
+            "reject_reason": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": 39331,
+      "type": "waba",
+      "account_id": 32595019,
+      "name": "Recordatorio Viaje",
+      "content": "Recuerde que para viajes internacionales su pasaporte tiene que tener una vigencia minima de 6 meses despues de su fecha de viaje. tambien recuerde investigar los documentos, visas que se necesitan para donde viajara.",
+      "created_at": 1741093441,
+      "updated_at": 1741093441,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": "",
+      "waba_category": "MARKETING",
+      "waba_template_type": "standard",
+      "waba_template_body": null,
+      "waba_language": "es",
+      "waba_examples": [],
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": "approved",
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/39331?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": [
+          {
+            "id": 5533,
+            "source_id": 53840,
+            "status": "approved",
+            "reject_reason": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": 40843,
+      "type": "waba",
+      "account_id": 32595019,
+      "name": "Quedamos a su espera",
+      "content": "quedo atenta a lo que necesite. bonito dia",
+      "created_at": 1744351448,
+      "updated_at": 1744351448,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": "",
+      "waba_category": "MARKETING",
+      "waba_template_type": "standard",
+      "waba_template_body": null,
+      "waba_language": "es",
+      "waba_examples": [],
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": "review",
+      "is_on_review": true,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/40843?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": [
+          {
+            "id": 5721,
+            "source_id": 53840,
+            "status": "review",
+            "reject_reason": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": 40869,
+      "type": "waba",
+      "account_id": 32595019,
+      "name": "si quiere que le cotice algo mas me dice",
+      "content": "si quiere que le cotice algo mas me dice",
+      "created_at": 1744393539,
+      "updated_at": 1744393539,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": "",
+      "waba_category": "MARKETING",
+      "waba_template_type": "standard",
+      "waba_template_body": null,
+      "waba_language": "es",
+      "waba_examples": [],
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": "review",
+      "is_on_review": true,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/40869?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": [
+          {
+            "id": 5723,
+            "source_id": 53840,
+            "status": "review",
+            "reject_reason": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": 47273,
+      "type": "waba",
+      "account_id": 32595019,
+      "name": "Prueba",
+      "content": "\nDisculpe la tardanza. aun necesita que le cotice su viaje?\n\n",
+      "created_at": 1767806500,
+      "updated_at": 1767806510,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": "",
+      "waba_category": "MARKETING",
+      "waba_template_type": "standard",
+      "waba_template_body": null,
+      "waba_language": "es",
+      "waba_examples": [],
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": "approved",
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/47273?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": [
+          {
+            "id": 8599,
+            "source_id": 53840,
+            "status": "approved",
+            "reject_reason": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": 50033,
+      "type": "waba",
+      "account_id": 32595019,
+      "name": "viajes grupales",
+      "content": "✨ ¡Únete a nuestros viajes grupales! ✈️🌎\n\n🇲🇽 Guanajuato y Guadalajara\n📅 Septiembre | 6 días\nConoce Guanajuato, San Miguel de Allende, Tequila, Chapala y Guadalajara.\n\n🇮🇹🇫🇷 Italia y París\n📅 Septiembre | 12 días\nVisita Roma, Venecia, Milán, Florencia, La Toscana y París.\n\n🇹🇭 Tailandia\n📅 Octubre | 10 días\nConoce Bangkok, Chiang Mai, Chiang Rai y Phuket.\n\n🇲🇽 Morelia y Guadalajara\n📅 Diciembre | 6 días\nVive la experiencia de la Mariposa Monarca, además de visitar Pátzcuaro, Janitzio, Chapala, Tequila y Guadalajara.\n\n",
+      "created_at": 1779900192,
+      "updated_at": 1779900192,
+      "buttons": [
+        {
+          "text": "Quieres mas info?",
+          "type": "inline"
+        },
+        {
+          "text": "Buscas otro viaje?",
+          "type": "inline"
+        },
+        {
+          "text": "cotiza en linea",
+          "type": "inline"
+        }
+      ],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": "",
+      "waba_category": "MARKETING",
+      "waba_template_type": "standard",
+      "waba_template_body": null,
+      "waba_language": "es",
+      "waba_examples": [],
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": "approved",
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/50033?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": [
+          {
+            "id": 10801,
+            "source_id": 53840,
+            "status": "approved",
+            "reject_reason": ""
+          }
+        ]
+      }
+    },
+    {
+      "id": 51373,
+      "type": "waba",
+      "account_id": 32595019,
+      "name": "aun necesita su viaje)",
+      "content": "Disculpe la tardanza aun necesita su viaje para cotizarlo?",
+      "created_at": 1786640004,
+      "updated_at": 1786640004,
+      "buttons": [],
+      "attachment": null,
+      "is_editable": true,
+      "external_id": null,
+      "waba_footer": "",
+      "waba_category": "MARKETING",
+      "waba_template_type": "standard",
+      "waba_template_body": null,
+      "waba_language": "es",
+      "waba_examples": [],
+      "waba_header": null,
+      "waba_header_type": null,
+      "review_status": "approved",
+      "is_on_review": false,
+      "_links": {
+        "self": {
+          "href": "https://nicollbrintevaworlds.kommo.com/api/v4/chats/templates/51373?with=reviews&limit=250&page=1"
+        }
+      },
+      "_embedded": {
+        "reviews": [
+          {
+            "id": 11629,
+            "source_id": 53840,
+            "status": "approved",
+            "reject_reason": ""
+          }
+        ]
+      }
+    }
+  ]
+}

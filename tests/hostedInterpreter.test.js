@@ -132,7 +132,7 @@ function axiosStub(responder) {
 }
 
 function textResponse(payload) {
-  return { data: { content: [{ text: JSON.stringify(payload) }] } };
+  return { data: { content: [{ type: 'text', text: JSON.stringify(payload) }] } };
 }
 
 const baseDeps = () => ({ env: { ANTHROPIC_API_KEY: 'test-key' }, log: { warn: () => {}, error: () => {} } });
@@ -154,7 +154,7 @@ test('parses the real fenced Haiku response for Keren\'s bundled offers (fence +
     ],
   };
   const rawHaikuText = '```json\n' + JSON.stringify(modelOutput) + '\n```';
-  const axios = axiosStub(async () => ({ data: { content: [{ text: rawHaikuText }] } }));
+  const axios = axiosStub(async () => ({ data: { content: [{ type: 'text', text: rawHaikuText }] } }));
   const result = await interpretHostedMessage({ ...baseDeps(), axios }, KEREN_REAL_MESSAGE);
 
   // The fence parsed fine and the classification call is exactly right
@@ -182,7 +182,7 @@ test('parses the real fenced Haiku response for Keren\'s bundled offers (fence +
     ],
   };
   const patchedText = '```json\n' + JSON.stringify(patched) + '\n```';
-  const axios2 = axiosStub(async () => ({ data: { content: [{ text: patchedText }] } }));
+  const axios2 = axiosStub(async () => ({ data: { content: [{ type: 'text', text: patchedText }] } }));
   const result2 = await interpretHostedMessage({ ...baseDeps(), axios: axios2 }, KEREN_REAL_MESSAGE);
   assert.equal(result2.ok, true);
   assert.equal(result2.classification, 'travel_offers');
@@ -227,8 +227,28 @@ test('accepts the six-day itinerary end to end and preserves every line', async 
   assert.equal(result.tours.length, 1);
   assert.equal(result.tours[0].days.length, 6);
   assert.equal(result.title.value, 'OAXACA COLONIAL - 6 dias');
-  assert.equal(result.usage.model, 'claude-haiku-4-5-20251001');
+  assert.equal(result.usage.model, 'claude-sonnet-4-6');
   assert.equal(typeof result.usage.durationMs, 'number');
+});
+
+test('requests adaptive thinking and reads the text block after a thinking block', async () => {
+  let requestBody = null;
+  const axios = axiosStub(async (url, body) => {
+    requestBody = body;
+    return {
+      data: {
+        content: [
+          { type: 'thinking', thinking: '', signature: 'sig' },
+          { type: 'text', text: JSON.stringify(sixDayModelOutput()) },
+        ],
+      },
+    };
+  });
+  const result = await interpretHostedMessage({ ...baseDeps(), axios }, SIX_DAY_ITINERARY);
+
+  assert.deepEqual(requestBody.thinking, { type: 'adaptive' });
+  assert.equal(result.ok, true);
+  assert.equal(result.tours[0].days.length, 6);
 });
 
 test('rejects a null title for a real itinerary — a day heading is never a title', async () => {
@@ -524,7 +544,7 @@ test('rejects itinerary classification carrying two tours', () => {
 // ── Transport-level failures ─────────────────────────────────────────────
 
 test('returns invalid_json for a non-JSON model response', async () => {
-  const axios = axiosStub(async () => ({ data: { content: [{ text: 'not json at all' }] } }));
+  const axios = axiosStub(async () => ({ data: { content: [{ type: 'text', text: 'not json at all' }] } }));
   const result = await interpretHostedMessage({ ...baseDeps(), axios }, SIX_DAY_ITINERARY);
   assert.equal(result.ok, false);
   assert.equal(result.reason, 'invalid_json');

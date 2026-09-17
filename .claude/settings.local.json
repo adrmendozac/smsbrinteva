@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(ssh -i ~/.ssh/id_ed25519_smsbrinteva_vps vuelosmundi@72.167.54.34)",
+      "WebFetch(domain:sms.brintevaworlds.com)",
+      "Bash(git push origin main)",
+      "WebFetch(domain:developers.kommo.com)",
+      "WebSearch",
+      "Bash(GIT_SSH_COMMAND=ssh -i ~/.ssh/id_ed25519_smsbrinteva_vps git push production main)",
+      "Bash(ln -sfn /Users/adrianmendozachafloque/Downloads/smsbrinteva/admin-ui/node_modules /private/tmp/claude-501/-Users-adrianmendozachafloque-Downloads-smsbrinteva/8cbfe9de-732f-4c3a-a3ff-2113556cc8f4/scratchpad/ptest/node_modules)",
+      "Bash(node real.ts)",
+      "Bash(node --check tests/hosted.test.js)",
+      "Bash(node --test --test-name-pattern=\"entire body|prose line|prose lines|delivery clause with no day|malformed heading-like|never invokes the wrapper\" tests/hosted.test.js)"
+    ]
+  }
+}

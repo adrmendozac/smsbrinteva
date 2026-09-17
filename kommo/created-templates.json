@@ -1,0 +1,193 @@
+{
+  "created": [
+    {
+      "old_id": 34886,
+      "new_id": 51745,
+      "type": "amocrm",
+      "name": "Pago - Zelle",
+      "batch": "batch1",
+      "created_at": "2026-09-16T20:30:08.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 34888,
+      "new_id": 51747,
+      "type": "amocrm",
+      "name": "Promo - Hotel Xcaret México",
+      "batch": "batch1",
+      "created_at": "2026-09-16T20:30:08.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 34894,
+      "new_id": 51749,
+      "type": "amocrm",
+      "name": "Pago - Depósito bancario",
+      "batch": "batch1",
+      "created_at": "2026-09-16T20:30:08.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 34900,
+      "new_id": 51757,
+      "type": "waba",
+      "name": "Bienvenida - Primer contacto",
+      "batch": "batch2",
+      "created_at": "2026-09-16T20:30:38.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 34932,
+      "new_id": 51759,
+      "type": "waba",
+      "name": "Bienvenida - Envío de cotización",
+      "batch": "batch2",
+      "created_at": "2026-09-16T20:30:38.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 34938,
+      "new_id": 51751,
+      "type": "amocrm",
+      "name": "Info - Ubicación de oficinas",
+      "batch": "batch1",
+      "created_at": "2026-09-16T20:30:08.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 35036,
+      "new_id": 51761,
+      "type": "waba",
+      "name": "Seguimiento - Trabajando en su viaje",
+      "batch": "batch2",
+      "created_at": "2026-09-16T20:30:38.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 35052,
+      "new_id": 51763,
+      "type": "waba",
+      "name": "Seguimiento - Interés en su viaje",
+      "batch": "batch2",
+      "created_at": "2026-09-16T20:30:38.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 35172,
+      "new_id": 51765,
+      "type": "waba",
+      "name": "Seguimiento - Reservar o cotizar",
+      "batch": "batch2",
+      "created_at": "2026-09-16T20:30:38.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 35178,
+      "new_id": 51753,
+      "type": "amocrm",
+      "name": "Info - Qué incluye Hotel Xcaret",
+      "batch": "batch1",
+      "created_at": "2026-09-16T20:30:08.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 35440,
+      "new_id": 51767,
+      "type": "waba",
+      "name": "Seguimiento - Cotización día 2",
+      "batch": "batch3",
+      "created_at": "2026-09-16T20:34:11.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 36052,
+      "new_id": 51755,
+      "type": "amocrm",
+      "name": "Cierre - Dudas",
+      "batch": "batch1",
+      "created_at": "2026-09-16T20:30:08.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 36072,
+      "new_id": 51769,
+      "type": "waba",
+      "name": "Seguimiento - Qué pensó de su viaje",
+      "batch": "batch3",
+      "created_at": "2026-09-16T20:34:11.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 36953,
+      "new_id": 51771,
+      "type": "waba",
+      "name": "Seguimiento - Contacto inicial",
+      "batch": "batch3",
+      "created_at": "2026-09-16T20:34:11.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 37395,
+      "new_id": 51773,
+      "type": "waba",
+      "name": "Promo - Enlace a promociones",
+      "batch": "batch3",
+      "created_at": "2026-09-16T20:34:11.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 38107,
+      "new_id": 51775,
+      "type": "waba",
+      "name": "Promo - Sitio web",
+      "batch": "batch3",
+      "created_at": "2026-09-16T20:34:11.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 39331,
+      "new_id": 51777,
+      "type": "waba",
+      "name": "Recordatorio - Pasaporte y visas",
+      "batch": "batch4",
+      "created_at": "2026-09-16T20:34:12.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 40843,
+      "new_id": 51779,
+      "type": "waba",
+      "name": "Cierre - Quedo atenta",
+      "batch": "batch4",
+      "created_at": "2026-09-16T20:34:12.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 40869,
+      "new_id": 51781,
+      "type": "waba",
+      "name": "Cierre - Cotizar algo más",
+      "batch": "batch4",
+      "created_at": "2026-09-16T20:34:12.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 47273,
+      "new_id": 51783,
+      "type": "waba",
+      "name": "Seguimiento - Disculpe la tardanza",
+      "batch": "batch4",
+      "created_at": "2026-09-16T20:34:12.000Z",
+      "review_status": null
+    },
+    {
+      "old_id": 50033,
+      "new_id": 51785,
+      "type": "waba",
+      "name": "Promo - Viajes grupales 2026",
+      "batch": "batch4",
+      "created_at": "2026-09-16T20:34:12.000Z",
+      "review_status": null
+    }
+  ]
+}
